@@ -45,7 +45,9 @@ toPlayerView(state: GameState, seat: Seat): PlayerView
 redactEvent(event: GameEvent, viewerSeat: Seat | 'spectator'): GameEvent | null
 defaultActionOnTimeout(state: GameState, seat: Seat): Action      // safest legal action (take hit, end turn, discard random…)
 ```
-State is treated as immutable (use structuredClone or Immer inside the engine; tests assert input state is unchanged).
+State is treated as immutable: `applyAction` makes one `structuredClone` of the input and the rule helpers mutate that
+private draft (`rules/context.ts` `Ctx`). Tests deep-freeze inputs to prove callers' states are never touched.
+Extra helpers: `whyIllegal(state, seat, action) → string | null`, `isActionLegal`, `expandLegalActions(legal)`.
 
 ### 2.2 State shape (sketch)
 ```ts
@@ -55,30 +57,33 @@ type Role = 'sheriff' | 'deputy' | 'outlaw' | 'renegade'
 interface Card { id: CardId; type: CardType; suit: Suit; rank: number }
 
 interface PlayerState {
-  seat: Seat; name: string; characterId: CharacterId; role: Role;
-  life: number; maxLife: number; hand: CardId[]; inPlay: CardId[];
+  seat: Seat; name: string; characterId: CharacterId | null;   // null only during choose_of_2 setup
+  role: Role; life: number; maxLife: number; hand: CardId[]; inPlay: CardId[];
   alive: boolean; isNpc: boolean; npcDifficulty?: 'easy' | 'medium' | 'hard';
 }
 
 interface GameState {
   schemaVersion: 1;
-  config: GameConfig;                     // players, characterMode, …
-  rng: RngState;                          // seeded PRNG (e.g. sfc32/xoshiro), serializable
-  cards: Record<CardId, Card>;
-  deck: CardId[]; discard: CardId[];      // deck[0] = top
+  config: GameConfig;                     // players (seat order), characterMode: 'random' | 'choose_of_2'
+  rng: RngState;                          // sfc32 state [u32,u32,u32,u32], JSON-safe
+  deck: CardId[]; discard: CardId[];      // deck[0] = top; discard top = last element
   players: PlayerState[];
-  turn: { seat: Seat; number: number; phase: 'start' | 'draw' | 'play' | 'discard'; bangsPlayed: number };
+  turn: { seat: Seat; number: number; phase: 'setup' | 'start' | 'draw' | 'play' | 'discard'; bangsPlayed: number };
   stack: Prompt[];                        // pending interactions, top = last element
   winner: null | 'sheriff_team' | 'outlaws' | 'renegade';
-  stats: Record<Seat, { damageDealt: number; kills: number; cardsPlayed: number }>;
+  stats: { damageDealt: number; kills: number; cardsPlayed: number }[];  // indexed by seat
 }
 ```
+Card data (type/suit/rank) is static in `src/engine/cards/deck.ts` (`getCard(id)`), not stored in the state.
+In `choose_of_2` mode, setup pushes one `CHOOSE_CHARACTER` prompt per player (Sheriff first, then clockwise); life
+and starting hands are dealt only after every player has chosen (`turn.phase = 'setup'` until then).
 
 ### 2.3 Prompt stack (handles nested interactions)
 The engine is a state machine driven by a stack of prompts. The top prompt says *who* must act and *which* actions are
 legal. Examples:
 ```ts
 type Prompt =
+  | { kind: 'CHOOSE_CHARACTER'; seat; options: [CharacterId, CharacterId] } // choose_of_2 setup
   | { kind: 'PLAY'; seat }                                           // free play phase
   | { kind: 'DRAW_CHOICE'; seat; options: ('deck'|'player'|'discard'|'kit')[] } // Jesse / Pedro / Kit
   | { kind: 'KIT_PICK'; seat; cards: CardId[] }                     // keep 2 of 3
@@ -106,13 +111,29 @@ type Action =
   | { type: 'END_TURN' }
   | { type: 'DISCARD'; cardIds: CardId[] }
 type Target = { seat?: Seat; cardId?: CardId; fromHand?: true }
+type Choice = { kind: 'character'; characterId: CharacterId } /* | draw option, store pick, … in later phases */
 ```
 
+`getLegalActions` returns **descriptors**, not every concrete action, because card picks would explode
+combinatorially ("discard any 3 of these 7"):
+```ts
+type LegalAction =
+  | { type: 'PLAY_CARD'; cardId; targets: Target[] | null }  // null = no target; else pick exactly one
+  | { type: 'RESPOND'; cardIds: CardId[]; count: number }    // exactly `count` distinct cards from cardIds
+  | { type: 'PASS' } | { type: 'END_TURN' }
+  | { type: 'CHOOSE'; choices: Choice[] }
+  | { type: 'DISCARD'; cardIds: CardId[]; count: number }
+```
+A BANG! target always gets a `RESPOND_BANG` prompt, and a player at 0 life always gets `DYING`, even with no usable
+card (then `PASS` is the only option): skipping the prompt would reveal that their hand has no Missed!/Beer.
+
 ### 2.5 Events (drive the 3D Director and the log)
-Events are fine-grained, ordered, and carry everything needed to animate. Each has `seq` within its commit.
+Events are fine-grained, ordered, and carry everything needed to animate. The engine returns them in order; the
+commit layer (server / LocalAdapter) assigns each its `seq` within the commit.
 ```ts
 type GameEvent =
   | { t: 'GAME_STARTED'; seats: SeatPublic[] } | { t: 'ROLE_ASSIGNED'; seat; role } /* private except sheriff */
+  | { t: 'CHARACTER_CHOSEN'; seat; characterId }                    /* choose_of_2 setup */
   | { t: 'TURN_STARTED'; seat; turn } | { t: 'PHASE'; seat; phase }
   | { t: 'CARDS_DRAWN'; seat; count; cardIds?: CardId[]; from: 'deck'|'discard'|'player'; fromSeat? } /* ids private */
   | { t: 'CARD_REVEALED'; seat; cardId; reason: 'black_jack' }
@@ -134,7 +155,7 @@ type GameEvent =
   | { t: 'ELIMINATED'; seat; role; killer: Seat | null }
   | { t: 'REWARD'; seat; kind: 'outlaw_bounty'|'deputy_penalty' }
   | { t: 'DECK_RESHUFFLED'; size }
-  | { t: 'GAME_OVER'; winner; roles: Record<Seat, Role> }
+  | { t: 'GAME_OVER'; winner; roles: Role[] }                      /* indexed by seat */
 ```
 
 ### 2.6 Information hiding

@@ -1,5 +1,5 @@
 import { ESLint } from "eslint";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 // Proves the Golden rule 2 lint rules in eslint.config.mjs actually fire, so a config change that
 // silently disables them fails CI instead of letting impure code into src/engine or src/ai.
@@ -11,6 +11,11 @@ async function ruleIdsFor(code: string, filePath: string): Promise<string[]> {
 }
 
 describe("engine/AI purity lint rules", () => {
+  // Loading the ESLint config (Next + typescript-eslint) is slow on a cold start, especially in parallel runs.
+  beforeAll(async () => {
+    await eslint.lintText("export {};", { filePath: "src/engine/warmup.ts" });
+  }, 60_000);
+
   it.each([
     ["Math.random", "export const x = Math.random();", "no-restricted-properties"],
     ["Date.now", "export const x = Date.now();", "no-restricted-globals"],
