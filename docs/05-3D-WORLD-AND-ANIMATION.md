@@ -22,6 +22,9 @@
   plate + life bullets (HTML overlay anchored with drei `Html` or a screen-space HUD badge), Sheriff star, a dynamite
   stick or jail chain visual when relevant.
 - The deck and discard pile sit on the central wagon/well.
+- Implementation (Phase 7): name plates are screen-space DOM badges (`game3d/hud/SeatBadges` + `BadgeTracker`, moved
+  each frame through refs) rather than drei `Html`, which created one React root per badge and logged unmount races
+  under React 19. Seats are laid out by `world/layout.ts` (`seatPosition`: you at the front, clockwise to your left).
 - Buildings are functional set pieces used by cinematics (Saloon for Beer/Saloon, Jail for Jail, Bank/stagecoach for
   Stagecoach & Wells Fargo, General Store for General Store, main street for Duel, desert edge for Indians!).
 
@@ -42,7 +45,10 @@ Use drei `CameraControls` for smooth transitions (`setLookAt(..., true)`), GSAP 
   scales the card; a 2D tooltip shows full rules text. Illegal cards are dimmed (from `legalActions`).
 - **Playing**: drag a card onto a highlighted target player (or click card → click target). Targets in range glow
   (rim light + ground ring). Self/global cards (Beer, Saloon, Gatling, Indians!, Stagecoach, Wells Fargo, General Store,
-  blue self-cards) play by dragging up onto the table or double-click.
+  blue self-cards) play by dragging up onto the table or double-click; a single click only selects them (a "Play"
+  button appears) so a stray click never wastes a card. The prompt panel always lists the same targets and choices as
+  buttons. Selection logic is shared with the 2D table (`ui/table/useTableInteraction`, from `legalActions` only). A
+  drop resolves the seat by R3F hover or, as a fallback, by the nearest projected character (`game3d/seatPicker`).
 - Card flight: played card flies from hand (or opponent's hand position) to the center, flips face-up, then goes to the
   discard pile or the target's crate.
 - draw! check: the top card flips huge in front of the camera with the suit glowing; success = gold flash, failure = red.
