@@ -1,4 +1,5 @@
-import type { CardId } from "../cards/types";
+import { cardType } from "../cards/deck";
+import type { CardId, CardType } from "../cards/types";
 import type { GameEvent } from "../events/types";
 import type { GameState, PlayerState, Prompt, Seat } from "../state/types";
 
@@ -64,8 +65,19 @@ export function othersClockwise(s: GameState, from: Seat): Seat[] {
   return seats;
 }
 
-export function hasInPlay(p: PlayerState, predicate: (id: CardId) => boolean): boolean {
-  return p.inPlay.some(predicate);
+/** The in-play card of that type, if any (at most one: duplicate blue names are illegal, §4.3). */
+export function inPlayOfType(p: PlayerState, type: CardType): CardId | undefined {
+  return p.inPlay.find((id) => cardType(id) === type);
+}
+
+export function hasCardType(p: PlayerState, type: CardType): boolean {
+  return inPlayOfType(p, type) !== undefined;
+}
+
+export function removeFromPlay(p: PlayerState, cardId: CardId): void {
+  const i = p.inPlay.indexOf(cardId);
+  if (i < 0) throw new Error(`Card ${cardId} not in play for seat ${p.seat}`);
+  p.inPlay.splice(i, 1);
 }
 
 /** Removes `cardId` from the player's hand; throws if absent (callers validated legality already). */

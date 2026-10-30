@@ -1,3 +1,4 @@
+import { startBangResponse } from "../bangResponse";
 import { emit, livingSeats, othersClockwise, playerAt, popPrompt, pushPrompt, type Ctx } from "../context";
 import { equippedWeapon } from "../distance";
 import type { Prompt } from "../../state/types";
@@ -26,7 +27,9 @@ export function resolveMultiTarget(ctx: Ctx, driver: Extract<Prompt, { kind: "MU
     if (!playerAt(ctx.s, to).alive) continue;
     if (driver.source === "gatling") {
       emit(ctx, { t: "SHOT", from: driver.attacker, to, source: "gatling", weapon: "gatling" });
-      pushPrompt(ctx, { kind: "RESPOND_BANG", seat: to, attacker: driver.attacker, source: "gatling", needed: 1, got: 0 });
+      // R-12: one Missed! effect per target, even from Slab the Killer. A Barrel may settle it without a prompt,
+      // in which case the driver simply stays on top and advance() moves to the next target.
+      startBangResponse(ctx, to, driver.attacker, "gatling", 1);
     } else {
       pushPrompt(ctx, { kind: "RESPOND_INDIANS", seat: to, attacker: driver.attacker });
     }

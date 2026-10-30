@@ -2,11 +2,7 @@ import { COLT_45_RANGE, WEAPON_RANGE } from "../cards/cardData";
 import { cardType } from "../cards/deck";
 import type { CardType } from "../cards/types";
 import type { GameState, PlayerState, Seat } from "../state/types";
-import { playerAt } from "./context";
-
-function hasCardType(p: PlayerState, type: CardType): boolean {
-  return p.inPlay.some((id) => cardType(id) === type);
-}
+import { hasCardType, playerAt } from "./context";
 
 /** Minimum steps either way around the table, counting only living players (docs/02 §3). */
 export function seatDistance(s: GameState, from: Seat, to: Seat): number {

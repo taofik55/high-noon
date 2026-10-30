@@ -102,6 +102,13 @@ automatic steps until a prompt needs a player. General Store cards live in `STOR
 last card goes to the last picker without a prompt. There is no `CHOOSE_TARGET_CARD` prompt: Panic! / Cat Balou name
 the card in the action's `Target` (see 2.4).
 
+Shared rule helpers: `drawCheck(ctx, seat, reason, isSuccess)` is the single "draw!" (reveal, discard, `DRAW_CHECK`
+event; Lucky Duke hooks in here). `startBangResponse(ctx, target, attacker, source, needed)` starts every BANG!-like hit
+(BANG!, each Gatling target): it runs Barrel checks first (R-9) and pushes `RESPOND_BANG` only if Missed! effects are
+still needed. Start-of-turn checks (`rules/startOfTurn.ts`) consume their card, so the `start` phase can be re-entered
+safely after a `DYING` prompt interrupted it. `LUCKY_PICK` is still open: Phase 4 decides between this prompt and an
+automatic favorable pick (there is always a dominant choice).
+
 ### 2.4 Actions
 ```ts
 type Action =

@@ -1,6 +1,7 @@
 import type { CardType } from "../../cards/types";
 import { bangHandler } from "./bang";
 import { beerHandler } from "./beer";
+import { equipHandler, jailHandler } from "./equip";
 import { generalStoreHandler } from "./generalStore";
 import type { CardHandler } from "./handler";
 import { duelHandler, gatlingHandler, indiansHandler } from "./multi";
@@ -20,6 +21,16 @@ export const CARD_HANDLERS: Partial<Record<CardType, CardHandler>> = {
   duel: duelHandler,
   general_store: generalStoreHandler,
   saloon: saloonHandler,
+  barrel: equipHandler,
+  scope: equipHandler,
+  mustang: equipHandler,
+  dynamite: equipHandler,
+  volcanic: equipHandler,
+  schofield: equipHandler,
+  remington: equipHandler,
+  rev_carabine: equipHandler,
+  winchester: equipHandler,
+  jail: jailHandler,
 };
 
 export type { CardHandler } from "./handler";

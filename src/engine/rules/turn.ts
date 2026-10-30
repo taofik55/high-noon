@@ -3,6 +3,7 @@ import { promptActor, type Prompt, type Seat, type TurnPhase } from "../state/ty
 import { resolveMultiTarget } from "./cards/multi";
 import { emit, nextLivingSeat, playerAt, pushPrompt, topPrompt, type Ctx } from "./context";
 import { drawCards } from "./draw";
+import { startOfTurnStep } from "./startOfTurn";
 
 const MAX_STEPS = 10_000;
 
@@ -61,8 +62,16 @@ function stepTurn(ctx: Ctx): void {
 
   switch (phase) {
     case "start":
-      // Start-of-turn checks (Dynamite, then Jail) arrive in Phase 3.
-      setPhase(ctx, "draw");
+      switch (startOfTurnStep(ctx, seat)) {
+        case "checked":
+          return; // loop again: the player may be dying, dead (R-5) or have another check left
+        case "skip_turn":
+          startTurn(ctx, nextLivingSeat(s, seat));
+          return;
+        case "continue":
+          setPhase(ctx, "draw");
+          return;
+      }
       return;
     case "draw":
       // Character draw variants (Black Jack, Jesse, Kit, Pedro) arrive in Phase 4.

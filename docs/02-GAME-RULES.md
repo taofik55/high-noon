@@ -111,6 +111,7 @@ Play any number of cards, in any order, subject to:
 - Max 1 BANG! card per turn (Volcanic or Willy the Kid: unlimited). Gatling, Duel, Indians! do not count.
 - Max 1 weapon in play; playing a new weapon discards the old one.
 - No two blue cards with the same name in front of the same player (applies to Jail on the target too).
+  **R-32:** this also means the weapon you already have in play cannot be played again (it would replace itself).
 - Jail cannot target the Sheriff. Dynamite goes in front of yourself.
 - Beer: no effect and **not playable** when only 2 players are alive (R-6). Beer cannot be played if already at max life
   (R-7, prevents pointless plays; the UI disables it).
@@ -133,6 +134,10 @@ Reveal the top card of the deck, apply the check, discard the revealed card. Luc
 - Dynamite: Spades with rank 2–9 → explodes.
 **R-9:** Barrel checks are performed automatically (it has no downside) before asking for Missed!. Jourdonnais with a real
 Barrel performs up to two checks (ability first, then card), stopping as soon as enough Missed! effects are reached.
+If the checks already cancel the hit, the target is not prompted (the Barrel is public, so nothing leaks).
+**R-33:** If no card can be revealed (deck and discard both empty), the check fails: Barrel gives no Missed!, Jail
+keeps you in (turn skipped), Dynamite does not explode and passes on. The card being checked (Jail, Dynamite) is
+discarded only after the draw!, so it can never be reshuffled into its own check.
 
 ## 6. Card effect resolution details
 ### 6.1 BANG!
