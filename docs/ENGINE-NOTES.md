@@ -37,6 +37,15 @@ the printed rules or the original docs left open. Read it before changing engine
 - `stats` and `GAME_OVER.roles` are arrays indexed by seat.
 - `PlayerView.discard` is the whole pile (public), not just the top card.
 
+## Helpers shared with the AI (Phase 5)
+
+- `matchLegal(legalActions, action)` validates an action against descriptors only (used by `whyIllegal` and by the
+  AI's `decideSafe`, which only has a view).
+- `defaultActionFromLegal(promptKind, legalActions)` is the timeout policy without a state (AI fallback).
+- `effectiveDistance` / `seatDistance` / `weaponRange` take a structural `DistanceTable`, satisfied by both `GameState`
+  and `PlayerView`.
+- `checkInvariants(state)` lives in `src/engine/debug/invariants.ts` for the tests and the simulator.
+
 ## Timeouts
 
 `defaultActionOnTimeout` defends instead of taking the hit (Missed! when shot, BANG! against Indians!, Beer when

@@ -34,6 +34,8 @@ describe("engine/AI purity lint rules", () => {
     ["@/server", 'import { x as y } from "@/server/gameService";\nexport const x = y;', "no-restricted-imports"],
     ["relative ui", 'import { x as y } from "../../ui/hud";\nexport const x = y;', "no-restricted-imports"],
     ["relative server", 'import { x as y } from "../server/admin";\nexport const x = y;', "no-restricted-imports"],
+    ["@/lib", 'import { x as y } from "@/lib/supabase/client";\nexport const x = y;', "no-restricted-imports"],
+    ["relative src/lib", 'import { x as y } from "../../lib/supabase/client";\nexport const x = y;', "no-restricted-imports"],
   ])("rejects %s in src/engine and src/ai", async (_name, code, rule) => {
     expect(await ruleIdsFor(code, "src/engine/rules/probe.ts")).toContain(rule);
     expect(await ruleIdsFor(code, "src/ai/probe.ts")).toContain(rule);
@@ -43,6 +45,11 @@ describe("engine/AI purity lint rules", () => {
     const code = 'import { x as y } from "@/engine/rng";\nexport const x = Math.max(1, y);';
     expect(await ruleIdsFor(code, "src/engine/rules/probe.ts")).toEqual([]);
     expect(await ruleIdsFor(code, "src/ai/probe.ts")).toEqual([]);
+  });
+
+  it("allows the AI's own helper folder src/ai/lib", async () => {
+    const code = 'import { x as y } from "./lib/view";\nexport const x = y;';
+    expect(await ruleIdsFor(code, "src/ai/medium.ts")).toEqual([]);
   });
 
   it("does not restrict code outside engine/AI", async () => {

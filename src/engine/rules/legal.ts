@@ -136,7 +136,7 @@ function sameChoice(a: Choice, b: Choice): boolean {
   }
 }
 
-function checkPick(cardIds: CardId[], allowed: CardId[], count: number): string | null {
+function checkPick(cardIds: readonly CardId[], allowed: readonly CardId[], count: number): string | null {
   if (cardIds.length !== count) return `must pick exactly ${count} card(s), got ${cardIds.length}`;
   if (new Set(cardIds).size !== cardIds.length) return "duplicate cards";
   const bad = cardIds.find((id) => !allowed.includes(id));
@@ -147,13 +147,19 @@ function checkPick(cardIds: CardId[], allowed: CardId[], count: number): string 
 export function whyIllegal(s: GameState, seat: Seat, action: Action): string | null {
   if (s.winner) return "game is over";
   if (currentActor(s) !== seat) return `seat ${seat} is not the one to act`;
-  const legal = getLegalActions(s, seat);
+  return matchLegal(getLegalActions(s, seat), action, playerAt(s, seat).hand);
+}
 
+/**
+ * Checks `action` against legal-action descriptors only (no state needed), so the AI can validate its choice against
+ * `view.legalActions`. `hand` only sharpens the error message. Returns null if the action is allowed.
+ */
+export function matchLegal(legal: readonly LegalAction[], action: Action, hand?: readonly CardId[]): string | null {
   switch (action.type) {
     case "PLAY_CARD": {
       const option = legal.find((l) => l.type === "PLAY_CARD" && l.cardId === action.cardId && l.asType === action.asType);
       if (!option || option.type !== "PLAY_CARD") {
-        if (!playerAt(s, seat).hand.includes(action.cardId)) return `card ${action.cardId} is not in hand`;
+        if (hand && !hand.includes(action.cardId)) return `card ${action.cardId} is not in hand`;
         const as = action.asType ? ` as ${action.asType}` : "";
         return `${cardType(action.cardId)} (${action.cardId})${as} cannot be played now`;
       }
@@ -214,7 +220,7 @@ function combinations<T>(items: T[], k: number, limit: number): T[][] {
  * Enumerates concrete actions from descriptors (for bots and random-play tests). Card-pick descriptors are
  * capped at `limitPerDescriptor` combinations, so the result may be a subset when hands are huge.
  */
-export function expandLegalActions(legal: LegalAction[], limitPerDescriptor = 200): Action[] {
+export function expandLegalActions(legal: readonly LegalAction[], limitPerDescriptor = 200): Action[] {
   const actions: Action[] = [];
   for (const l of legal) {
     switch (l.type) {

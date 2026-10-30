@@ -37,7 +37,9 @@ const impureImportPatterns = [
       "@/app", "@/app/**", "@/game3d", "@/game3d/**", "@/ui", "@/ui/**",
       "@/net", "@/net/**", "@/server", "@/server/**", "@/lib", "@/lib/**",
       "**/app", "**/app/**", "**/game3d", "**/game3d/**", "**/ui", "**/ui/**",
-      "**/net", "**/net/**", "**/server", "**/server/**", "**/lib", "**/lib/**",
+      "**/net", "**/net/**", "**/server", "**/server/**",
+      // src/lib (Supabase clients) only: src/ai/lib is the AI's own helper folder (docs/06 §2).
+      "../lib", "../lib/**", "../../lib", "../../lib/**", "../../../lib", "../../../lib/**",
     ],
     message: "Engine/AI must not import presentation, network or server code (Golden rule 2).",
   },

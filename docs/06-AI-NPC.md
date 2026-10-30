@@ -2,24 +2,37 @@
 
 ## 1. Contract
 ```ts
-decide(view: PlayerView, difficulty: 'easy' | 'medium' | 'hard', rng: Rng, budgetMs?: number): Action
+createMemory(view: PlayerView): AiMemory
+observe(memory: AiMemory, event: GameEvent /* already redacted for this NPC */): AiMemory   // pure, returns a new one
+decide(view, memory, difficulty: 'easy' | 'medium' | 'hard', rng: RngState, opts?: AiOptions): Action
+decideSafe(view, memory, difficulty, rng, opts?, onProblem?): Action   // what every host calls
+interface AiOptions { samples?; candidates?; horizon?; now?: () => number; budgetMs?: number }  // hard only
 ```
-- Input is **only** the NPC's own `PlayerView` (+ its private memory object derived from past public events, see 3).
+- Input is **only** the NPC's own `PlayerView` (+ its private memory built from the events it was shown, see 3).
   No access to `GameState`. NPCs never cheat.
-- Must always return an action contained in `view.legalActions`. A wrapper validates and falls back to
-  `defaultActionOnTimeout` semantics if the brain returns something illegal (and logs it in dev).
-- Pure and deterministic given (view, memory, rng). Solo: runs in a Web Worker. Online: runs inline on the server with
-  `budgetMs = 50`.
+- Must always return an action contained in `view.legalActions`. `decideSafe` validates with the engine's
+  `matchLegal(view.legalActions, action)` and, if the brain throws or picks something illegal, reports it through
+  `onProblem` and plays `fallbackAction(view)` (= the engine's timeout policy, `defaultActionFromLegal`).
+- Pure and deterministic given (view, memory, rng, opts). The RNG is the engine's seeded `RngState`, advanced in place.
+- **Budget:** the hard bot's work is bounded by counts (`samples`, `candidates`, `horizon`; defaults 8 / 5 / 40), so
+  simulations are reproducible. `src/ai` cannot read a clock (Golden rule 2); an online host may inject
+  `now` + `budgetMs = 50` as an extra wall-clock guard (at least one sample always runs).
+- Solo: runs in a Web Worker (Phase 6). Online: inline on the server.
 
 ## 2. Shared building blocks (`src/ai/lib`)
-- `evaluateCardValue(card, context)` — how useful a card is to keep (Missed! high when low life, Beer high when hurt,
-  weapons by range relative to targets, etc.).
-- `threatOf(seat)` — how dangerous a player is to me (range to me, hand size, weapon, known hostility).
-- `canKill(target)` — whether my available BANG!/Duel/Gatling/Indians! could finish them this turn.
-- `distanceTable(view)` — effective distance from each player to each other (public info).
+- `cardValue(view, cardId)` — how useful a card is to keep (Missed! high when low life, Beer high when hurt and useless
+  with 2 alive, weapons by range gain, duplicates of equipped blue cards low).
+- `hostility(view, memory, seat)` in [-1, 1] — how much I want that player weakened, from my role, public roles and
+  suspicion (table in §3). Medium's attack and targeting scores are built on it.
+- Distances: the engine's `effectiveDistance` / `weaponRange` accept a `PlayerView` directly (structural type), so the
+  AI never re-implements the distance rules.
+- `characterStrength(id)` — ranking used in the choose_of_2 variant.
 
 ## 3. Role inference (medium/hard)
-Each NPC keeps `memory.suspicion[seat]` in [-1, 1] = estimated probability-weighted "is an enemy of the Sheriff".
+Each NPC keeps `memory.suspicion[seat]` in [-1, 1] = estimated probability-weighted "is an enemy of the Sheriff", and
+`memory.knownRoles` (own role, the Sheriff, eliminated players; known roles pin suspicion to ±1). Implemented in
+`src/ai/memory.ts`: a targeted BANG!/Duel/Panic!/Cat Balou/Jail on the Sheriff adds +0.6; on another player it adds
+−0.35 × that player's suspicion; removing Jail/Dynamite from someone counts as the opposite (helping).
 Updated from public events:
 - Attacking the Sheriff (BANG!/Duel/Panic!/Cat Balou/Jail on Sheriff) → strong +.
 - Attacking a player who attacked the Sheriff → −.
@@ -52,10 +65,13 @@ Turn plan in priority order:
 Responses: use Missed!/Barrel automatically; in Duel keep discarding BANG! while value of winning > cost.
 
 ### Hard
-- Medium heuristics + **determinized lookahead**: sample K (e.g. 8–24, limited by `budgetMs`) plausible hidden worlds
-  consistent with the view (unknown hand contents drawn from the unseen card pool; unknown roles drawn from the role
-  posterior from 3), simulate the next 1–2 own decisions + opponents' likely responses with the medium policy, score
-  outcomes with a role-aware utility, pick the action with best average.
+- Medium heuristics + **determinized lookahead** at its own PLAY prompt: sample K plausible hidden worlds consistent
+  with the view (`determinize`: unknown hands and deck order from a shuffle of the unseen cards; unknown roles drawn
+  from the remaining role pool weighted by suspicion), try medium's top `candidates` actions (+ END_TURN) in every
+  world, let all seats play on with the medium policy until this NPC's turn ends (or `horizon` steps), score with a
+  role-aware utility (`utility.ts`), pick the best average (ties keep medium's order).
+- Every other prompt (responses, dying, choices) uses medium: the view only shows the top of the prompt stack, so
+  those situations cannot be rebuilt faithfully. The important decisions happen in the play phase.
 - Utility: team win probability proxy = Σ(friendly life & cards) − Σ(enemy life & cards) + bonuses for kills of enemies,
   heavy penalty for killing teammates/Sheriff (unless Outlaw/endgame Renegade).
 - Bluff awareness: Renegade hides by attacking Outlaws early; Deputies avoid attacking uncertain players at low info.
@@ -66,7 +82,7 @@ Responses: use Missed!/Barrel automatically; in Duel keep discarding BANG! while
 |---|---|
 | DRAW_CHOICE | Jesse: steal from the enemy with most cards; Pedro: take the discard top if it's valuable |
 | KIT_PICK | return the least valuable of the 3 |
-| STORE_PICK | highest `evaluateCardValue` |
+| STORE_PICK | highest `cardValue` |
 | Panic! / Cat Balou target (in the PLAY_CARD `Target`) | best in-play card of an enemy (weapon > barrel > mustang > scope), Jail/Dynamite off an ally when that is the goal (never yourself, R-13), else a random hand card |
 | DISCARD_EXCESS | discard lowest value |
 | DYING | heal if possible (Beer, Sid Ketchum ability) |
@@ -74,9 +90,17 @@ Responses: use Missed!/Barrel automatically; in Duel keep discarding BANG! while
 Lucky Duke needs no policy: the engine always keeps the favorable draw! card for him (R-23).
 
 ## 6. Simulation harness (`scripts/sim.ts`, `pnpm sim`)
-- Runs N full games with all-NPC seats, random player counts and difficulties, seeded.
-- Asserts every step: chosen action ∈ legal actions, invariants hold (80 cards conserved across deck/discard/hands/in
-  play/store; life ≤ max; dead players have no cards; exactly one Sheriff; stack consistent), game terminates within
-  1000 turns.
-- Reports win rates per role/difficulty, average game length, crash seeds for reproduction.
+```
+pnpm sim -- --games 10000 --players 4-7 --difficulty mixed --seed sim --workers 6 --json report.json
+pnpm sim -- --games 1 --seed sim-42 --exact      # replay one failing game
+           [--hard-samples 8 --hard-candidates 5 --hard-horizon 40]
+```
+- One game = `simulateGame()` in `src/ai/simulate.ts` (pure, also used by the Vitest smoke test): all-NPC seats, each
+  bot deciding through `decideSafe` from its own view and the redacted events it was shown, exactly like a host.
+- Asserts every step: chosen action ∈ legal actions (any fallback counts as an AI problem), the engine accepts it,
+  `checkInvariants` holds (80 cards conserved across deck/discard/hands/in play/store/Kit; life ≤ max; dead players
+  hold no cards; exactly one Sheriff; stack consistent), game terminates within 1000 turns.
+- Reports win rates per role, a difficulty × role table, a role-normalized score per difficulty (mean over roles of
+  "difficulty win rate − overall role win rate"), average length, and failing seeds. Exit code 1 on any failure.
+- Parallel through Node `worker_threads` (script only); results are reordered by job, so the report is deterministic.
 - Acceptance: 10,000 games without invariant violations; Hard beats Medium beats Easy in mixed tables (role-normalized).

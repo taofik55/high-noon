@@ -1,7 +1,7 @@
-import type { Action } from "../rules/actions";
+import type { Action, LegalAction } from "../rules/actions";
 import { topPrompt } from "../rules/context";
 import { getLegalActions } from "../rules/legal";
-import type { GameState, Seat } from "../state/types";
+import type { GameState, PromptKind, Seat } from "../state/types";
 
 /**
  * The action taken for a player whose timer ran out (docs/03 §5.2). It defends automatically so an AFK player does not
@@ -10,10 +10,17 @@ import type { GameState, Seat } from "../state/types";
  */
 export function defaultActionOnTimeout(s: GameState, seat: Seat): Action {
   const prompt = topPrompt(s);
-  const legal = getLegalActions(s, seat);
-  if (!prompt || legal.length === 0) throw new Error(`defaultActionOnTimeout: seat ${seat} has nothing to do`);
+  if (!prompt) throw new Error(`defaultActionOnTimeout: seat ${seat} has nothing to do`);
+  return defaultActionFromLegal(prompt.kind, getLegalActions(s, seat));
+}
 
-  switch (prompt.kind) {
+/**
+ * Same policy from a prompt kind and legal-action descriptors only, so the AI can fall back on it from its
+ * PlayerView without the game state.
+ */
+export function defaultActionFromLegal(kind: PromptKind, legal: readonly LegalAction[]): Action {
+  if (legal.length === 0) throw new Error("defaultActionFromLegal: no legal action");
+  switch (kind) {
     case "PLAY":
       return { type: "END_TURN" };
     case "RESPOND_BANG":
@@ -42,5 +49,5 @@ export function defaultActionOnTimeout(s: GameState, seat: Seat): Action {
     case "MULTI_TARGET":
       break;
   }
-  throw new Error(`defaultActionOnTimeout: no default for ${prompt.kind}`);
+  throw new Error(`defaultActionFromLegal: no default for ${kind}`);
 }

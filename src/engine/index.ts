@@ -4,10 +4,18 @@
 export { createGame, type CreateGameResult } from "./state/createGame";
 export { toPlayerView, type PlayerView, type PublicPlayer, type ViewPrompt, type Viewer } from "./view/playerView";
 export { redactEvent } from "./view/redact";
-export { defaultActionOnTimeout } from "./view/timeout";
+export { defaultActionFromLegal, defaultActionOnTimeout } from "./view/timeout";
 export { applyAction, type ApplyResult } from "./rules/apply";
-export { currentActor, expandLegalActions, getLegalActions, isActionLegal, whyIllegal } from "./rules/legal";
-export { effectiveDistance, seatDistance, weaponRange } from "./rules/distance";
+export { currentActor, expandLegalActions, getLegalActions, isActionLegal, matchLegal, whyIllegal } from "./rules/legal";
+export {
+  effectiveDistance,
+  equippedWeapon,
+  seatDistance,
+  weaponRange,
+  type DistancePlayer,
+  type DistanceTable,
+} from "./rules/distance";
+export { checkInvariants } from "./debug/invariants";
 export { checkWinner } from "./rules/damage";
 export { IllegalActionError } from "./errors";
 
