@@ -78,7 +78,7 @@ Done when: pnpm typecheck && pnpm lint && pnpm test pass. Propose the plan first
 ## Fase 2 — Engine: kartu coklat
 ```
 Read CLAUDE.md and docs/02-GAME-RULES.md §6. Phase 2: implement all remaining brown cards in the engine:
-Panic!, Cat Balou (with CHOOSE_TARGET_CARD prompt: random hand card or specific in-play card), Stagecoach,
+Panic!, Cat Balou (card named in the action Target: random hand card or specific in-play card), Stagecoach,
 Wells Fargo, Gatling (MULTI_TARGET driver, clockwise order R-11, R-12), Indians!, Duel (alternating, damage source
 = opponent), General Store (STORE_PICK order), Saloon. Emit the events listed in docs/03 §2.5 with enough data for
 animation. Tests: T-7 (distance part relevant to Panic!), T-9, T-13 to T-19, T-32.

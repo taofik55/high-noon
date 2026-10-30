@@ -1,5 +1,5 @@
 import type { DamageCause } from "../events/types";
-import type { GameState, Seat, Winner } from "../state/types";
+import { promptActor, type GameState, type Seat, type Winner } from "../state/types";
 import { emit, playerAt, pushPrompt, type Ctx } from "./context";
 
 export function dealDamage(ctx: Ctx, seat: Seat, amount: number, source: Seat | null, cause: DamageCause): void {
@@ -44,7 +44,8 @@ export function eliminate(ctx: Ctx, seat: Seat, killer: Seat | null): void {
   }
 
   // A dead player can no longer act; this also ends their own turn (R-16) because their PLAY prompt goes away.
-  s.stack = s.stack.filter((prompt) => prompt.seat !== seat);
+  // Multi-target drivers skip dead seats when they resolve.
+  s.stack = s.stack.filter((prompt) => promptActor(prompt) !== seat);
 
   const winner = checkWinner(s);
   if (winner) endGame(ctx, winner);

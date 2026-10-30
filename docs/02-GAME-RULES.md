@@ -155,8 +155,11 @@ front of them). Target must have at least one card (hand or in play). Cannot tar
 ### 6.6 General Store
 Reveal K cards (K = living players). Starting with the player who played it, clockwise, each living player picks 1.
 The last player gets the last card automatically.
+**R-31:** If deck + discard hold fewer than K cards (R-8 reshuffle included, which can bring the General Store card
+itself back), reveal what is available; pickers at the end of the order get nothing.
 ### 6.7 Beer & Saloon
 +1 life up to max. Saloon heals everyone alive including the player who played it.
+**R-30:** Saloon is playable even if nobody is wounded and with only 2 players alive (R-6/R-7 restrict Beer only).
 ### 6.8 Stagecoach / Wells Fargo
 Draw 2 / 3.
 

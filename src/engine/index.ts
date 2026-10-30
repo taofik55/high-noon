@@ -12,6 +12,7 @@ export { ALL_CARDS, ALL_CARD_IDS, getCard, cardType, isCardId } from "./cards/de
 export { COLT_45_RANGE, WEAPON_RANGE, isBlueCard, isWeapon } from "./cards/cardData";
 export { CHARACTERS, CHARACTER_IDS } from "./characters/data";
 export { ROLE_COUNTS, rolesFor, MIN_PLAYERS, MAX_PLAYERS } from "./state/roles";
+export { promptActor } from "./state/types";
 export { createRng, nextUint32, pick, randomInt, shuffle, type RngState } from "./rng";
 
 export type { Card, CardId, CardType, Rank, Suit } from "./cards/types";

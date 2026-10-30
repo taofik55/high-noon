@@ -6,6 +6,7 @@ import {
   expandLegalActions,
   getLegalActions,
   pick,
+  promptActor,
   type Action,
   type GameEvent,
   type GameState,
@@ -15,7 +16,9 @@ import {
 /** Returns a list of broken invariants (empty = fine). */
 export function checkInvariants(s: GameState): string[] {
   const problems: string[] = [];
-  const all = [...s.deck, ...s.discard, ...s.players.flatMap((p) => [...p.hand, ...p.inPlay])];
+  // General Store cards sit in the prompt until picked.
+  const storeCards = s.stack.flatMap((pr) => (pr.kind === "STORE_PICK" ? pr.revealed : []));
+  const all = [...s.deck, ...s.discard, ...storeCards, ...s.players.flatMap((p) => [...p.hand, ...p.inPlay])];
   if (all.length !== ALL_CARD_IDS.length) problems.push(`card count ${all.length} != ${ALL_CARD_IDS.length}`);
   if (new Set(all).size !== all.length) problems.push("duplicate card ids across zones");
 
@@ -29,8 +32,11 @@ export function checkInvariants(s: GameState): string[] {
   if (s.winner && s.stack.length > 0) problems.push("game over but prompts remain");
   if (!s.winner && currentActor(s) === null) problems.push("no actor but game not over");
   for (const prompt of s.stack) {
-    if (!s.players[prompt.seat]?.alive) problems.push(`prompt ${prompt.kind} for dead seat ${prompt.seat}`);
+    const actor = promptActor(prompt);
+    if (actor !== null && !s.players[actor]?.alive) problems.push(`prompt ${prompt.kind} for dead seat ${actor}`);
   }
+  const top = s.stack.at(-1);
+  if (top && promptActor(top) === null) problems.push(`driver prompt ${top.kind} left unresolved on top`);
   return problems;
 }
 

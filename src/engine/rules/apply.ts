@@ -6,7 +6,9 @@ import type { GameEvent } from "../events/types";
 import type { GameState, Seat } from "../state/types";
 import type { Action } from "./actions";
 import { CARD_HANDLERS } from "./cards";
-import { emit, playerAt, popPrompt, takeFromHand, topPrompt, type Ctx } from "./context";
+import { continueStore, giveStoreCard } from "./cards/generalStore";
+import { duelShot } from "./cards/multi";
+import { emit, playerAt, popPrompt, pushPrompt, takeFromHand, topPrompt, type Ctx } from "./context";
 import { dealDamage, eliminate, heal } from "./damage";
 import { whyIllegal } from "./legal";
 import { advance } from "./turn";
@@ -28,9 +30,14 @@ export function applyAction(state: GameState, seat: Seat, action: Action): Apply
 
 /** Moves a played/responded card from hand to the discard pile and announces it. */
 function playFromHand(ctx: Ctx, seat: Seat, cardId: CardId): void {
+  discardFromHand(ctx, seat, cardId);
+  emit(ctx, { t: "CARD_PLAYED", seat, cardId });
+}
+
+/** Silent move to the discard pile; the caller emits the event that explains it (INDIANS_DEFENDED, DUEL_ROUND…). */
+function discardFromHand(ctx: Ctx, seat: Seat, cardId: CardId): void {
   takeFromHand(playerAt(ctx.s, seat), cardId);
   ctx.s.discard.push(cardId);
-  emit(ctx, { t: "CARD_PLAYED", seat, cardId });
 }
 
 function resolveAction(ctx: Ctx, seat: Seat, action: Action): void {
@@ -40,11 +47,20 @@ function resolveAction(ctx: Ctx, seat: Seat, action: Action): void {
 
   switch (action.type) {
     case "CHOOSE": {
-      if (prompt.kind !== "CHOOSE_CHARACTER") break;
-      playerAt(s, seat).characterId = action.choice.characterId;
-      emit(ctx, { t: "CHARACTER_CHOSEN", seat, characterId: action.choice.characterId });
-      popPrompt(ctx);
-      return;
+      const choice = action.choice;
+      if (prompt.kind === "CHOOSE_CHARACTER" && choice.kind === "character") {
+        playerAt(s, seat).characterId = choice.characterId;
+        emit(ctx, { t: "CHARACTER_CHOSEN", seat, characterId: choice.characterId });
+        popPrompt(ctx);
+        return;
+      }
+      if (prompt.kind === "STORE_PICK" && choice.kind === "store_card") {
+        popPrompt(ctx);
+        giveStoreCard(ctx, seat, choice.cardId);
+        continueStore(ctx, prompt.revealed.filter((id) => id !== choice.cardId), prompt.order);
+        return;
+      }
+      break;
     }
 
     case "PLAY_CARD": {
@@ -88,6 +104,22 @@ function resolveAction(ctx: Ctx, seat: Seat, action: Action): void {
         if (playerAt(s, seat).life >= 1) popPrompt(ctx);
         return;
       }
+      if (prompt.kind === "RESPOND_INDIANS") {
+        const [cardId] = action.cardIds as [CardId];
+        discardFromHand(ctx, seat, cardId);
+        emit(ctx, { t: "INDIANS_DEFENDED", seat, cardId });
+        popPrompt(ctx);
+        return;
+      }
+      if (prompt.kind === "DUEL") {
+        const [cardId] = action.cardIds as [CardId];
+        discardFromHand(ctx, seat, cardId);
+        emit(ctx, { t: "DUEL_ROUND", seat, discarded: cardId });
+        popPrompt(ctx);
+        // The ball is in the other duellist's court.
+        pushPrompt(ctx, { kind: "DUEL", seat: prompt.opponent, opponent: seat, initiator: prompt.initiator });
+        return;
+      }
       break;
     }
 
@@ -95,6 +127,20 @@ function resolveAction(ctx: Ctx, seat: Seat, action: Action): void {
       if (prompt.kind === "RESPOND_BANG") {
         popPrompt(ctx);
         dealDamage(ctx, seat, 1, prompt.attacker, prompt.source);
+        return;
+      }
+      if (prompt.kind === "RESPOND_INDIANS") {
+        popPrompt(ctx);
+        emit(ctx, { t: "INDIANS_HIT", seat });
+        dealDamage(ctx, seat, 1, prompt.attacker, "indians");
+        return;
+      }
+      if (prompt.kind === "DUEL") {
+        popPrompt(ctx);
+        emit(ctx, { t: "DUEL_ROUND", seat, discarded: null });
+        duelShot(ctx, seat, prompt.opponent);
+        // §6.4: the opponent is the damage source (kill credit, El Gringo).
+        dealDamage(ctx, seat, 1, prompt.opponent, "duel");
         return;
       }
       if (prompt.kind === "DYING") {

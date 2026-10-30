@@ -1,6 +1,6 @@
 import { cardType } from "../cards/deck";
 import type { CardId } from "../cards/types";
-import type { GameState, Seat } from "../state/types";
+import { promptActor, type GameState, type Seat } from "../state/types";
 import type { Action, Choice, LegalAction, Target } from "./actions";
 import { beerAllowed } from "./cards/beer";
 import { CARD_HANDLERS } from "./cards";
@@ -9,10 +9,11 @@ import { playerAt, topPrompt } from "./context";
 /** Seat that must act now (top of the prompt stack), or null when the game is over. */
 export function currentActor(s: GameState): Seat | null {
   if (s.winner) return null;
-  return topPrompt(s)?.seat ?? null;
+  const top = topPrompt(s);
+  return top ? promptActor(top) : null;
 }
 
-function handOfType(s: GameState, seat: Seat, type: "missed" | "beer"): CardId[] {
+function handOfType(s: GameState, seat: Seat, type: "missed" | "beer" | "bang"): CardId[] {
   return playerAt(s, seat).hand.filter((id) => cardType(id) === type);
 }
 
@@ -48,6 +49,19 @@ export function getLegalActions(s: GameState, seat: Seat): LegalAction[] {
       return legal;
     }
 
+    // Indians!: discard a BANG! or take the hit; Missed!/Barrel do not help (§6.3). Duel: same choice each round.
+    case "RESPOND_INDIANS":
+    case "DUEL": {
+      const legal: LegalAction[] = [];
+      const bangs = handOfType(s, seat, "bang");
+      if (bangs.length > 0) legal.push({ type: "RESPOND", cardIds: bangs, count: 1 });
+      legal.push({ type: "PASS" });
+      return legal;
+    }
+
+    case "STORE_PICK":
+      return [{ type: "CHOOSE", choices: prompt.revealed.map((cardId) => ({ kind: "store_card", cardId })) }];
+
     case "DYING": {
       const legal: LegalAction[] = [];
       const beers = handOfType(s, seat, "beer");
@@ -58,6 +72,9 @@ export function getLegalActions(s: GameState, seat: Seat): LegalAction[] {
 
     case "DISCARD_EXCESS":
       return [{ type: "DISCARD", cardIds: [...playerAt(s, seat).hand], count: prompt.count }];
+
+    case "MULTI_TARGET":
+      return [];
   }
 }
 
@@ -66,7 +83,12 @@ function sameTarget(a: Target | undefined, b: Target): boolean {
 }
 
 function sameChoice(a: Choice, b: Choice): boolean {
-  return a.kind === b.kind && a.characterId === b.characterId;
+  switch (a.kind) {
+    case "character":
+      return b.kind === "character" && a.characterId === b.characterId;
+    case "store_card":
+      return b.kind === "store_card" && a.cardId === b.cardId;
+  }
 }
 
 function checkPick(cardIds: CardId[], allowed: CardId[], count: number): string | null {

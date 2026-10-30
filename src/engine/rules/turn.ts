@@ -1,21 +1,37 @@
 import { CHARACTERS } from "../characters/data";
-import type { Seat, TurnPhase } from "../state/types";
+import { promptActor, type Prompt, type Seat, type TurnPhase } from "../state/types";
+import { resolveMultiTarget } from "./cards/multi";
 import { emit, nextLivingSeat, playerAt, pushPrompt, topPrompt, type Ctx } from "./context";
 import { drawCards } from "./draw";
 
 const MAX_STEPS = 10_000;
 
 /**
- * Resolves automatic steps until a player must act or the game is over (docs/03 §2.3). With an empty stack, the
- * turn phase decides what happens next; every Phase 1 prompt has an actor, so a non-empty stack means "wait".
+ * Resolves automatic steps until a player must act or the game is over (docs/03 §2.3): driver prompts on top of
+ * the stack are resolved here, a prompt with an actor means "wait", and an empty stack lets the turn phase move on.
  */
 export function advance(ctx: Ctx): void {
   for (let step = 0; step < MAX_STEPS; step++) {
     if (ctx.s.winner) return;
-    if (topPrompt(ctx.s)) return;
+    const top = topPrompt(ctx.s);
+    if (top) {
+      if (promptActor(top) !== null) return;
+      resolveDriver(ctx, top);
+      continue;
+    }
     stepTurn(ctx);
   }
   throw new Error("advance: no progress after too many steps");
+}
+
+function resolveDriver(ctx: Ctx, prompt: Prompt): void {
+  switch (prompt.kind) {
+    case "MULTI_TARGET":
+      resolveMultiTarget(ctx, prompt);
+      return;
+    default:
+      throw new Error(`resolveDriver: ${prompt.kind} is not a driver prompt`);
+  }
 }
 
 function setPhase(ctx: Ctx, phase: TurnPhase): void {

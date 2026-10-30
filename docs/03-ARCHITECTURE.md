@@ -88,17 +88,19 @@ type Prompt =
   | { kind: 'DRAW_CHOICE'; seat; options: ('deck'|'player'|'discard'|'kit')[] } // Jesse / Pedro / Kit
   | { kind: 'KIT_PICK'; seat; cards: CardId[] }                     // keep 2 of 3
   | { kind: 'LUCKY_PICK'; seat; cards: [CardId, CardId]; check: DrawCheck }
-  | { kind: 'RESPOND_BANG'; seat; attacker; source: 'bang'|'gatling'; needed: 1|2; got: number }
+  | { kind: 'RESPOND_BANG'; seat; attacker; source: 'bang'|'gatling'; needed: number; got: number }
   | { kind: 'RESPOND_INDIANS'; seat; attacker }
-  | { kind: 'DUEL'; seat; opponent; initiator }
-  | { kind: 'STORE_PICK'; seat; revealed: CardId[]; order: Seat[] }
-  | { kind: 'CHOOSE_TARGET_CARD'; seat; target; reason: 'panic'|'cat_balou' }
+  | { kind: 'DUEL'; seat; opponent; initiator }                     // seat discards a BANG! or is hit by opponent
+  | { kind: 'STORE_PICK'; seat; revealed: CardId[]; order: Seat[] } // order = pickers after seat
   | { kind: 'DYING'; seat; killer: Seat | null }
   | { kind: 'DISCARD_EXCESS'; seat; count: number }
-  | { kind: 'MULTI_TARGET'; attacker; source: 'gatling'|'indians'; remaining: Seat[] } // driver, no actor
+  | { kind: 'MULTI_TARGET'; attacker; source: 'gatling'|'indians'; remaining: Seat[] } // driver, no `seat`
 ```
-Driver prompts without an actor are resolved by the engine automatically (e.g. pushing the next target's
-`RESPOND_BANG`). Write a single `advance(state)` loop that resolves automatic steps until a prompt needs a player.
+Driver prompts have no `seat` (`promptActor(prompt) === null`) and are resolved by the engine automatically (e.g.
+pushing the next target's `RESPOND_BANG`, skipping targets eliminated meanwhile). A single `advance()` loop resolves
+automatic steps until a prompt needs a player. General Store cards live in `STORE_PICK.revealed` until picked; the
+last card goes to the last picker without a prompt. There is no `CHOOSE_TARGET_CARD` prompt: Panic! / Cat Balou name
+the card in the action's `Target` (see 2.4).
 
 ### 2.4 Actions
 ```ts
@@ -111,8 +113,12 @@ type Action =
   | { type: 'END_TURN' }
   | { type: 'DISCARD'; cardIds: CardId[] }
 type Target = { seat?: Seat; cardId?: CardId; fromHand?: true }
-type Choice = { kind: 'character'; characterId: CharacterId } /* | draw option, store pick, … in later phases */
+type Choice =
+  | { kind: 'character'; characterId: CharacterId }
+  | { kind: 'store_card'; cardId: CardId }        /* | draw option, kit pick, lucky pick … in Phase 4 */
 ```
+Panic! / Cat Balou are one atomic action: `target: { seat, fromHand: true }` takes a random hand card (engine RNG),
+`target: { seat, cardId }` takes that in-play card. The UI collects player + card client-side before sending.
 
 `getLegalActions` returns **descriptors**, not every concrete action, because card picks would explode
 combinatorially ("discard any 3 of these 7"):

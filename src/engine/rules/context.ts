@@ -53,6 +53,17 @@ export function nextLivingSeat(s: GameState, from: Seat): Seat {
   return from;
 }
 
+/** Every other living seat, clockwise starting from the one on `from`'s left (R-11). */
+export function othersClockwise(s: GameState, from: Seat): Seat[] {
+  const n = s.players.length;
+  const seats: Seat[] = [];
+  for (let i = 1; i < n; i++) {
+    const seat = (from + i) % n;
+    if (playerAt(s, seat).alive) seats.push(seat);
+  }
+  return seats;
+}
+
 export function hasInPlay(p: PlayerState, predicate: (id: CardId) => boolean): boolean {
   return p.inPlay.some(predicate);
 }

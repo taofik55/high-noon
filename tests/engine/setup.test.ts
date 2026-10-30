@@ -6,11 +6,17 @@ import {
   createGame,
   currentActor,
   getLegalActions,
+  type CharacterId,
+  type Choice,
   type GameConfig,
   type Role,
 } from "@/engine";
 import { checkInvariants } from "./helpers/invariants";
 import { eventsOf } from "./helpers/scenario";
+
+function characterChoices(choices: Choice[]): CharacterId[] {
+  return choices.flatMap((c) => (c.kind === "character" ? [c.characterId] : []));
+}
 
 function config(n: number, characterMode: GameConfig["characterMode"] = "random"): GameConfig {
   return { players: Array.from({ length: n }, (_, i) => ({ name: `P${i}`, isNpc: i > 0 })), characterMode };
@@ -96,13 +102,14 @@ describe("setup (docs/02 §2)", () => {
         const [legal] = getLegalActions(state, seat);
         expect(legal?.type).toBe("CHOOSE");
         if (legal?.type !== "CHOOSE") return;
-        expect(legal.choices).toHaveLength(2);
-        legal.choices.forEach((c) => offered.add(c.characterId));
-        const choice = legal.choices[1]!;
-        const r = applyAction(state, seat, { type: "CHOOSE", choice });
+        const ids = characterChoices(legal.choices);
+        expect(ids).toHaveLength(2);
+        ids.forEach((id) => offered.add(id));
+        const characterId = ids[1]!;
+        const r = applyAction(state, seat, { type: "CHOOSE", choice: { kind: "character", characterId } });
         state = r.state;
-        expect(state.players[seat]?.characterId).toBe(choice.characterId);
-        expect(eventsOf(r.events, "CHARACTER_CHOSEN")).toEqual([{ t: "CHARACTER_CHOSEN", seat, characterId: choice.characterId }]);
+        expect(state.players[seat]?.characterId).toBe(characterId);
+        expect(eventsOf(r.events, "CHARACTER_CHOSEN")).toEqual([{ t: "CHARACTER_CHOSEN", seat, characterId }]);
       }
       expect(offered.size).toBe(10);
       expect(state.turn).toMatchObject({ seat: sheriff, phase: "play", number: 1 });
@@ -117,7 +124,7 @@ describe("setup (docs/02 §2)", () => {
       const seat = currentActor(state)!;
       const [legal] = getLegalActions(state, seat);
       if (legal?.type !== "CHOOSE") throw new Error("expected CHOOSE");
-      const offered = legal.choices.map((c) => c.characterId);
+      const offered = characterChoices(legal.choices);
       const other = (Object.keys(CHARACTERS) as Array<keyof typeof CHARACTERS>).find((id) => !offered.includes(id))!;
       expect(() => applyAction(state, seat, { type: "CHOOSE", choice: { kind: "character", characterId: other } })).toThrow(
         /not one of the options/,

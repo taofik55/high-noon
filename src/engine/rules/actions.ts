@@ -2,13 +2,17 @@ import type { CardId } from "../cards/types";
 import type { CharacterId } from "../characters/data";
 import type { Seat } from "../state/types";
 
+/**
+ * `{ seat }` targets a player. Panic! / Cat Balou name the card too: `{ seat, fromHand: true }` = a random hand card,
+ * `{ seat, cardId }` = that in-play card. This keeps them one atomic action (no follow-up prompt, docs/03 §2.4).
+ */
 export interface Target {
   seat?: Seat;
   cardId?: CardId;
   fromHand?: true;
 }
 
-export type Choice = { kind: "character"; characterId: CharacterId };
+export type Choice = { kind: "character"; characterId: CharacterId } | { kind: "store_card"; cardId: CardId };
 
 /** What a client (human or NPC) sends. Validated against getLegalActions before anything changes. */
 export type Action =

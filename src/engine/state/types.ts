@@ -59,16 +59,28 @@ export interface SeatStats {
 
 /**
  * Pending interactions; the top of the stack is the last element (docs/03 §2.3).
- * Every prompt here needs `seat` to act. Driver prompts without an actor (Gatling/Indians!) arrive in Phase 2.
+ * Prompts with a `seat` wait for that player; driver prompts (no `seat`) are resolved by advance().
  */
 export type Prompt =
   | { kind: "CHOOSE_CHARACTER"; seat: Seat; options: [CharacterId, CharacterId] }
   | { kind: "PLAY"; seat: Seat }
-  | { kind: "RESPOND_BANG"; seat: Seat; attacker: Seat; source: "bang"; needed: number; got: number }
+  | { kind: "RESPOND_BANG"; seat: Seat; attacker: Seat; source: "bang" | "gatling"; needed: number; got: number }
+  | { kind: "RESPOND_INDIANS"; seat: Seat; attacker: Seat }
+  /** `seat` must discard a BANG! or lose 1 life to `opponent`. */
+  | { kind: "DUEL"; seat: Seat; opponent: Seat; initiator: Seat }
+  /** `revealed` cards are off every zone until picked; `order` = pickers after `seat`. */
+  | { kind: "STORE_PICK"; seat: Seat; revealed: CardId[]; order: Seat[] }
   | { kind: "DYING"; seat: Seat; killer: Seat | null }
-  | { kind: "DISCARD_EXCESS"; seat: Seat; count: number };
+  | { kind: "DISCARD_EXCESS"; seat: Seat; count: number }
+  /** Driver for Gatling / Indians!: hits `remaining` one at a time, clockwise from the attacker's left (R-11). */
+  | { kind: "MULTI_TARGET"; attacker: Seat; source: "gatling" | "indians"; remaining: Seat[] };
 
 export type PromptKind = Prompt["kind"];
+
+/** The seat a prompt waits for, or null for driver prompts. */
+export function promptActor(prompt: Prompt): Seat | null {
+  return "seat" in prompt ? prompt.seat : null;
+}
 
 export interface GameState {
   schemaVersion: 1;
