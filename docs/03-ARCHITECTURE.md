@@ -215,7 +215,7 @@ on the server for online NPC seats (with a strict time budget).
 
 ### 4.1 GameAdapter
 ```ts
-interface GameUpdate { version: number; events: GameEvent[]; view: PlayerView }
+interface GameUpdate { version: number; events: GameEvent[]; view: PlayerView; actor: Seat | null } // actor: whose action (null = snapshot)
 interface GameAdapter {
   readonly mySeat: Seat
   start(): Promise<GameUpdate>                       // initial snapshot (view + recent events for log)
@@ -227,11 +227,22 @@ interface GameAdapter {
 ```
 The UI and 3D code depend only on this interface → solo and online share 100% of presentation code.
 
+**LocalAdapter** (`src/net/local`, solo): holds the full `GameState` in the browser (nobody to hide it from) but emits
+only the human's `PlayerView` and redacted events. The human is seat 0 (roles are random anyway). After each human
+action it runs the NPCs one action at a time — one `GameUpdate` per action, so the Director can stage each — asking an
+`AiRunner` (`WorkerAiRunner` = Web Worker via `new Worker(new URL('./ai.worker.ts', import.meta.url))`,
+`InlineAiRunner` for tests / fallback). NPC memories and RNG states live in the adapter; the worker only runs
+`decideSafe` and returns the advanced RNG. Saved to `localStorage` (`highnoon.solo.v1`) after every action, cleared at
+game over. `setAutoplay(true)` lets a medium bot play seat 0 (debugging, e2e).
+
 ### 4.2 Presented view vs latest view
 `useGameStore` keeps a queue of `GameUpdate`s. The **Director** pops an update, plays its events as cinematic
 sequences, then sets `presentedView = update.view`. The HUD renders `presentedView`, so results are never spoiled
 before the animation. Input is enabled only when the queue is empty and `presentedView.legalActions` is non-empty.
 Skip / cinematics "off" = apply updates instantly (still in order).
+Until Phase 8 a stub in `src/ui/store/gameStore.ts` plays the Director's role: each update is presented after
+`STEP_DELAY` (+ `NPC_THINK_DELAY` when an NPC acted; 0 in "fast" mode). `canAct(store)` = queue empty, not sending,
+legal actions present.
 
 ### 4.3 Client state stores (Zustand)
 - `gameStore`: adapter, queue, presentedView, selection state (selected card, hovered target), pending send.
