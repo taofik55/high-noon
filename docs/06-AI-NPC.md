@@ -33,6 +33,10 @@ Each NPC keeps `memory.suspicion[seat]` in [-1, 1] = estimated probability-weigh
 `memory.knownRoles` (own role, the Sheriff, eliminated players; known roles pin suspicion to ±1). Implemented in
 `src/ai/memory.ts`: a targeted BANG!/Duel/Panic!/Cat Balou/Jail on the Sheriff adds +0.6; on another player it adds
 −0.35 × that player's suspicion; removing Jail/Dynamite from someone counts as the opposite (helping).
+Role counting (`lib/hostility.ts` `effectiveSuspicion`) overrides behavior when it is conclusive: the role table minus
+every known role is the pool of the unknown players; if that pool holds only enemies of the Sheriff (or none), every
+unknown player's suspicion is certain. Example: once both Outlaws are dead, the last unknown is the Renegade even if he
+only ever shot Outlaws; the only Deputy at a 5-player table knows all unknowns are enemies.
 Updated from public events:
 - Attacking the Sheriff (BANG!/Duel/Panic!/Cat Balou/Jail on Sheriff) → strong +.
 - Attacking a player who attacked the Sheriff → −.
@@ -50,7 +54,8 @@ Role-based target preferences:
 ## 4. Difficulty levels
 ### Easy
 - Plays a random legal non-wasteful card ~60% of the time, otherwise ends turn.
-- Targets randomly among legal targets (Sheriff team bias: never target Sheriff unless Outlaw).
+- Targets randomly among legal targets (Sheriff team bias: a Deputy never targets the Sheriff; the Renegade only in the
+  final 1-vs-1, otherwise games stall with an easy Renegade facing the Sheriff alone).
 - Always uses Missed! if it has one; plays Beer only when life ≤ 1; discards random excess.
 
 ### Medium (heuristic, rule-based)

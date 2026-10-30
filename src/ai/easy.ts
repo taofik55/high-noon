@@ -9,13 +9,19 @@ import {
   type PlayerView,
   type RngState,
 } from "@/engine";
-import { me, playerOf } from "./lib/view";
+import { aliveCount, me, playerOf } from "./lib/view";
 
 const END_TURN: Action = { type: "END_TURN" };
 
+/** Whether an easy bot may attack the Sheriff: Outlaws always, the Renegade only in the final duel, Deputies never. */
+function mayAttackSheriff(view: PlayerView): boolean {
+  if (view.myRole === "outlaw") return true;
+  return view.myRole === "renegade" && aliveCount(view) <= 2;
+}
+
 /**
- * A "non-wasteful" play for an easy bot (docs/06 §4): Beer only when about to die, never shoot the Sheriff unless
- * you are an Outlaw. Everything else goes.
+ * A "non-wasteful" play for an easy bot (docs/06 §4): Beer only when about to die, and the Sheriff-team bias of
+ * mayAttackSheriff. Everything else goes.
  */
 function sensible(view: PlayerView, action: Action): boolean {
   if (action.type === "ABILITY") return me(view).life <= 1;
@@ -23,7 +29,7 @@ function sensible(view: PlayerView, action: Action): boolean {
   const type = action.asType ?? cardType(action.cardId);
   if (type === "beer") return me(view).life <= 1;
   const target = action.target?.seat;
-  if (target !== undefined && view.myRole !== "outlaw" && playerOf(view, target).role === "sheriff") return false;
+  if (target !== undefined && playerOf(view, target).role === "sheriff" && !mayAttackSheriff(view)) return false;
   return true;
 }
 

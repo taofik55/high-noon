@@ -99,29 +99,74 @@ describe("policies (docs/06 §4–5)", () => {
 });
 
 describe("role inference memory (docs/06 §3)", () => {
+  // A legal 5-player table (docs/02 §1.1): Sheriff, Deputy, 2 Outlaws, Renegade.
+  const FIVE = [{ role: "sheriff" }, { role: "outlaw" }, { role: "deputy" }, { role: "renegade" }, { role: "outlaw" }] as const;
+
   it("starts with the Sheriff and my own role known", () => {
-    const s = scenario({ players: [{ role: "sheriff" }, { role: "outlaw" }, { role: "deputy" }, { role: "renegade" }] });
+    const s = scenario({ players: [...FIVE] });
     const memory = createMemory(toPlayerView(s, 2));
-    expect(memory.knownRoles).toEqual(["sheriff", null, "deputy", null]);
-    expect(memory.suspicion).toEqual([-1, 0, -1, 0]);
+    expect(memory.knownRoles).toEqual(["sheriff", null, "deputy", null, null]);
+    expect(memory.suspicion).toEqual([-1, 0, -1, 0, 0]);
   });
 
   it("raises suspicion of whoever shoots the Sheriff, and lowers it for shooting a suspect", () => {
-    const s = scenario({ players: [{ role: "sheriff" }, { role: "outlaw" }, { role: "deputy" }, { role: "renegade" }] });
-    let memory = createMemory(toPlayerView(s, 2));
+    // Seen by the Sheriff, who cannot tell the Deputy, Outlaws and Renegade apart by role count.
+    const s = scenario({ players: [...FIVE] });
+    const view = toPlayerView(s, 0);
+    let memory = createMemory(view);
     memory = observe(memory, { t: "CARD_PLAYED", seat: 1, cardId: "c01", target: { seat: 0 } });
     expect(memory.suspicion[1]).toBeGreaterThan(0.5);
     memory = observe(memory, { t: "CARD_PLAYED", seat: 3, cardId: "c02", target: { seat: 1 } });
     expect(memory.suspicion[3]).toBeLessThan(0);
-    expect(hostility(toPlayerView(s, 2), memory, 1)).toBeGreaterThan(hostility(toPlayerView(s, 2), memory, 3));
+    expect(hostility(view, memory, 1)).toBeGreaterThan(hostility(view, memory, 3));
+  });
+
+  it("the only Deputy of a 5-player table knows every unknown player is an enemy", () => {
+    const s = scenario({ players: [...FIVE] });
+    const view = toPlayerView(s, 2);
+    const memory = createMemory(view);
+    for (const seat of [1, 3, 4]) expect(hostility(view, memory, seat)).toBeGreaterThan(0.5);
+    expect(hostility(view, memory, 0)).toBe(-1);
   });
 
   it("learns roles from eliminations and is immutable", () => {
-    const s = scenario({ players: [{ role: "sheriff" }, { role: "outlaw" }, { role: "deputy" }, { role: "renegade" }] });
+    const s = scenario({ players: [...FIVE] });
     const before = createMemory(toPlayerView(s, 2));
     const after = observe(before, { t: "ELIMINATED", seat: 3, role: "renegade", killer: 0 });
     expect(after.knownRoles[3]).toBe("renegade");
     expect(before.knownRoles[3]).toBeNull();
+  });
+
+  it("deduces roles from the remaining role pool (docs/06 §3): the last unknown in Sheriff vs Renegade is the enemy", () => {
+    // A Renegade who only ever shot Outlaws looks friendly, but once both Outlaws are dead he can only be the Renegade.
+    const s = scenario({
+      players: [{ role: "sheriff" }, { role: "outlaw", alive: false }, { role: "outlaw", alive: false }, { role: "renegade", hand: ["bang"] }],
+    });
+    const view = toPlayerView(s, 0);
+    let memory = createMemory(view);
+    memory = observe(memory, { t: "CARD_PLAYED", seat: 3, cardId: "c01", target: { seat: 1 } });
+    memory = { ...memory, suspicion: memory.suspicion.map((x, i) => (i === 3 ? -0.7 : x)) };
+    expect(hostility(view, memory, 3)).toBeGreaterThan(0.5);
+  });
+
+  it("an easy Renegade attacks the Sheriff in the final duel, never before", () => {
+    const duel = scenario({
+      players: [{ role: "sheriff" }, { role: "outlaw", alive: false }, { role: "outlaw", alive: false }, { role: "renegade", hand: ["bang"] }],
+      turn: { seat: 3 },
+    });
+    const view = toPlayerView(duel, 3);
+    const shots = Array.from({ length: 30 }, (_, i) => decide(view, createMemory(view), "easy", createRng(`r-${i}`)));
+    expect(shots.some((a) => a.type === "PLAY_CARD" && a.target?.seat === 0)).toBe(true);
+
+    const early = scenario({
+      players: [{ role: "sheriff" }, { role: "outlaw" }, { role: "outlaw" }, { role: "renegade", hand: ["bang", "bang"], inPlay: ["winchester"] }],
+      turn: { seat: 3 },
+    });
+    const earlyView = toPlayerView(early, 3);
+    for (let i = 0; i < 30; i++) {
+      const a = decide(earlyView, createMemory(earlyView), "easy", createRng(`e-${i}`));
+      if (a.type === "PLAY_CARD") expect(a.target?.seat).not.toBe(0);
+    }
   });
 
   it("hostility follows the role table", () => {
