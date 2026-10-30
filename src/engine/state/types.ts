@@ -72,6 +72,10 @@ export type Prompt =
   | { kind: "STORE_PICK"; seat: Seat; revealed: CardId[]; order: Seat[] }
   | { kind: "DYING"; seat: Seat; killer: Seat | null }
   | { kind: "DISCARD_EXCESS"; seat: Seat; count: number }
+  /** Jesse Jones / Pedro Ramirez draw-phase choice; the options are derived from the state (rules/drawPhase.ts). */
+  | { kind: "DRAW_CHOICE"; seat: Seat }
+  /** Kit Carlson: `cards` (private to him, off every zone) — he returns one to the top of the deck (R-22). */
+  | { kind: "KIT_PICK"; seat: Seat; cards: CardId[] }
   /** Driver for Gatling / Indians!: hits `remaining` one at a time, clockwise from the attacker's left (R-11). */
   | { kind: "MULTI_TARGET"; attacker: Seat; source: "gatling" | "indians"; remaining: Seat[] };
 

@@ -199,12 +199,12 @@ Draw 2 / 3.
 | R-17 Bart Cassidy | Draws 1 card per life point lost, any source including Dynamite. The draw happens right after the damage and **before** the dying check, so a drawn Beer can save him. |
 | R-18 Black Jack | Second drawn card revealed (public event). If ♥/♦, draw 1 more. Works even when the deck reshuffles. |
 | R-19 Calamity Janet | A Missed! played as BANG! counts toward the 1-BANG!-per-turn limit and obeys range. |
-| R-20 El Gringo | Per life point lost from a card played by another living player, draw 1 random card from that player's hand if any. Not for Dynamite. Applies during Duel/Indians!/Gatling. If he is eliminated by the hit, no draw. |
+| R-20 El Gringo | Per life point lost from a card played by another living player, draw 1 random card from that player's hand if any. Not for Dynamite. Applies during Duel/Indians!/Gatling. If the hit brings him to 0 or below, no draw (even if he then saves himself with Beer). |
 | R-21 Jesse Jones | Choice is optional: target any other player with ≥1 card in hand, or draw normally. |
 | R-22 Kit Carlson | Looks at 3 (or fewer if deck + discard is smaller), keeps 2, returns 1 to the top of the deck. |
-| R-23 Lucky Duke | Applies to every draw! (Barrel, Jail, Dynamite, Jourdonnais). He chooses; the AI/timeout picks the favorable one. |
+| R-23 Lucky Duke | Applies to every draw! (Barrel, Jail, Dynamite, Jourdonnais). Every check has a dominant choice (Hearts for Barrel/Jail, "no explosion" for Dynamite), so the engine keeps the favorable card for him automatically; both cards are shown in `DRAW_CHECK` and discarded. |
 | R-24 Pedro Ramirez | Optional; only if discard pile is non-empty. |
-| R-25 Sid Ketchum | Can be used during dying and in response windows. Requires 2 cards in hand. |
+| R-25 Sid Ketchum | Can be used whenever he is the one to act: play phase, response windows (BANG!, Indians!, Duel), dying, discard phase (the discard count is recomputed). Requires 2 cards in hand; not offered at max life (like R-7). Works with only 2 players alive (R-6 restricts Beer only). |
 | R-26 Slab the Killer | Targets need 2 Missed! effects against his BANG! cards. Not for Gatling (R-12), Duel or Indians!. |
 | R-27 Suzy Lafayette | Whenever her hand becomes empty (any time, in or out of her turn), she draws 1 after the current effect step resolves. Not while she is eliminated. |
 | R-28 Vulture Sam | Takes cards of every eliminated player (except himself). Happens before rewards (R-15). |

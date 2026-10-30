@@ -41,9 +41,9 @@ createGame(config: GameConfig, seed: string): { state: GameState; events: GameEv
 getLegalActions(state: GameState, seat: Seat): LegalAction[]     // empty if seat is not the one to act
 applyAction(state: GameState, seat: Seat, action: Action): { state: GameState; events: GameEvent[] } // throws IllegalActionError
 currentActor(state: GameState): Seat | null                      // seat that must act now (top of prompt stack)
-toPlayerView(state: GameState, seat: Seat): PlayerView
-redactEvent(event: GameEvent, viewerSeat: Seat | 'spectator'): GameEvent | null
-defaultActionOnTimeout(state: GameState, seat: Seat): Action      // safest legal action (take hit, end turn, discard random…)
+toPlayerView(state: GameState, viewer: Seat | 'spectator'): PlayerView
+redactEvent(event: GameEvent, viewer: Seat | 'spectator'): GameEvent | null
+defaultActionOnTimeout(state: GameState, seat: Seat): Action      // always legal; see 2.6
 ```
 State is treated as immutable: `applyAction` makes one `structuredClone` of the input and the rule helpers mutate that
 private draft (`rules/context.ts` `Ctx`). Tests deep-freeze inputs to prove callers' states are never touched.
@@ -85,9 +85,8 @@ legal. Examples:
 type Prompt =
   | { kind: 'CHOOSE_CHARACTER'; seat; options: [CharacterId, CharacterId] } // choose_of_2 setup
   | { kind: 'PLAY'; seat }                                           // free play phase
-  | { kind: 'DRAW_CHOICE'; seat; options: ('deck'|'player'|'discard'|'kit')[] } // Jesse / Pedro / Kit
-  | { kind: 'KIT_PICK'; seat; cards: CardId[] }                     // keep 2 of 3
-  | { kind: 'LUCKY_PICK'; seat; cards: [CardId, CardId]; check: DrawCheck }
+  | { kind: 'DRAW_CHOICE'; seat }                // Jesse / Pedro; options derived from state (drawChoices)
+  | { kind: 'KIT_PICK'; seat; cards: CardId[] }  // Kit: return 1 of 3 to the deck top; cards private, off every zone
   | { kind: 'RESPOND_BANG'; seat; attacker; source: 'bang'|'gatling'; needed: number; got: number }
   | { kind: 'RESPOND_INDIANS'; seat; attacker }
   | { kind: 'DUEL'; seat; opponent; initiator }                     // seat discards a BANG! or is hit by opponent
@@ -102,27 +101,31 @@ automatic steps until a prompt needs a player. General Store cards live in `STOR
 last card goes to the last picker without a prompt. There is no `CHOOSE_TARGET_CARD` prompt: Panic! / Cat Balou name
 the card in the action's `Target` (see 2.4).
 
-Shared rule helpers: `drawCheck(ctx, seat, reason, isSuccess)` is the single "draw!" (reveal, discard, `DRAW_CHECK`
-event; Lucky Duke hooks in here). `startBangResponse(ctx, target, attacker, source, needed)` starts every BANG!-like hit
-(BANG!, each Gatling target): it runs Barrel checks first (R-9) and pushes `RESPOND_BANG` only if Missed! effects are
-still needed. Start-of-turn checks (`rules/startOfTurn.ts`) consume their card, so the `start` phase can be re-entered
-safely after a `DYING` prompt interrupted it. `LUCKY_PICK` is still open: Phase 4 decides between this prompt and an
-automatic favorable pick (there is always a dominant choice).
+Shared rule helpers: `drawCheck(ctx, seat, reason, isSuccess, wantSuccess)` is the single "draw!" (reveal, discard,
+`DRAW_CHECK` event). Lucky Duke reveals 2 and the engine keeps the favorable card for him — every check has a dominant
+choice, so there is no `LUCKY_PICK` prompt (R-23). `startBangResponse(ctx, target, attacker, source, needed)` starts
+every BANG!-like hit (BANG!, Calamity's Missed!-as-BANG!, each Gatling target): it runs Jourdonnais' and the real
+Barrel's checks first (R-9) and pushes `RESPOND_BANG` only if Missed! effects are still needed. Start-of-turn checks
+(`rules/startOfTurn.ts`) consume their card, so the `start` phase can be re-entered safely after a `DYING` prompt
+interrupted it. The draw phase lives in `rules/drawPhase.ts` (Black Jack, Jesse, Kit, Pedro). Suzy Lafayette's draw is
+checked at every `advance()` step (R-27).
 
 ### 2.4 Actions
 ```ts
 type Action =
-  | { type: 'PLAY_CARD'; cardId: CardId; asType?: 'bang' | 'missed'; target?: Target } // asType for Calamity
-  | { type: 'RESPOND'; cardIds: CardId[] }       // Missed!/BANG!/Beer depending on prompt
+  | { type: 'PLAY_CARD'; cardId: CardId; asType?: 'bang'; target?: Target } // asType: Calamity's Missed! as BANG!
+  | { type: 'RESPOND'; cardIds: CardId[] }       // Missed!/BANG!/Beer depending on prompt (Calamity: either)
   | { type: 'PASS' }                             // take hit / decline / stop dueling
-  | { type: 'CHOOSE'; choice: Choice }           // draw option, store pick, kit pick, lucky pick, target card
-  | { type: 'ABILITY'; ability: 'sid_ketchum'; cardIds: [CardId, CardId] }
+  | { type: 'CHOOSE'; choice: Choice }           // character, store pick, draw option, kit return
+  | { type: 'ABILITY'; ability: 'sid_ketchum'; cardIds: CardId[] }  // exactly 2 cards
   | { type: 'END_TURN' }
   | { type: 'DISCARD'; cardIds: CardId[] }
 type Target = { seat?: Seat; cardId?: CardId; fromHand?: true }
 type Choice =
   | { kind: 'character'; characterId: CharacterId }
-  | { kind: 'store_card'; cardId: CardId }        /* | draw option, kit pick, lucky pick … in Phase 4 */
+  | { kind: 'store_card'; cardId: CardId }
+  | { kind: 'draw'; from: 'deck' | 'discard' | 'player'; seat?: Seat }   // Jesse (player + seat) / Pedro (discard)
+  | { kind: 'kit_return'; cardId: CardId }
 ```
 Panic! / Cat Balou are one atomic action: `target: { seat, fromHand: true }` takes a random hand card (engine RNG),
 `target: { seat, cardId }` takes that in-play card. The UI collects player + card client-side before sending.
@@ -131,12 +134,16 @@ Panic! / Cat Balou are one atomic action: `target: { seat, fromHand: true }` tak
 combinatorially ("discard any 3 of these 7"):
 ```ts
 type LegalAction =
-  | { type: 'PLAY_CARD'; cardId; targets: Target[] | null }  // null = no target; else pick exactly one
+  | { type: 'PLAY_CARD'; cardId; asType?: 'bang'; targets: Target[] | null }  // null = no target; else pick one
   | { type: 'RESPOND'; cardIds: CardId[]; count: number }    // exactly `count` distinct cards from cardIds
   | { type: 'PASS' } | { type: 'END_TURN' }
   | { type: 'CHOOSE'; choices: Choice[] }
+  | { type: 'ABILITY'; ability: 'sid_ketchum'; cardIds: CardId[]; count: 2 }
   | { type: 'DISCARD'; cardIds: CardId[]; count: number }
 ```
+Sid Ketchum's `ABILITY` is offered whenever he is the actor of a `PLAY`, `RESPOND_*`, `DUEL`, `DYING` or
+`DISCARD_EXCESS` prompt, holds ≥ 2 cards and is below max life (R-25). The engine never interrupts another player's
+prompt, so "at any time" means "any time he is asked to act".
 A BANG! target always gets a `RESPOND_BANG` prompt, and a player at 0 life always gets `DYING`, even with no usable
 card (then `PASS` is the only option): skipping the prompt would reveal that their hand has no Missed!/Beer.
 
@@ -149,6 +156,7 @@ type GameEvent =
   | { t: 'CHARACTER_CHOSEN'; seat; characterId }                    /* choose_of_2 setup */
   | { t: 'TURN_STARTED'; seat; turn } | { t: 'PHASE'; seat; phase }
   | { t: 'CARDS_DRAWN'; seat; count; cardIds?: CardId[]; from: 'deck'|'discard'|'player'; fromSeat? } /* ids private */
+  | { t: 'CARDS_INHERITED'; seat; from; handCount; handCardIds?: CardId[]; inPlay: CardId[] } /* Vulture Sam */
   | { t: 'CARD_REVEALED'; seat; cardId; reason: 'black_jack' }
   | { t: 'DRAW_CHECK'; seat; reason: 'barrel'|'jourdonnais'|'jail'|'dynamite'; cardIds: CardId[]; chosen: CardId; success: boolean }
   | { t: 'CARD_PLAYED'; seat; cardId; asType?; target? }
@@ -172,12 +180,28 @@ type GameEvent =
 ```
 
 ### 2.6 Information hiding
-- `toPlayerView(state, seat)`: own hand (full cards), own role, every player's public info (character, life, maxLife,
-  hand **count**, in-play cards, alive, role if Sheriff/eliminated/game over), deck count, discard top, turn, the current
-  prompt (with only public fields; General Store revealed cards are public), `legalActions` for this seat, winner.
-- `redactEvent`: removes `cardIds` from `CARDS_DRAWN` / `CARD_STOLEN(fromHand)` for non-owners (the stealer and the victim
-  both know the stolen card), hides `ROLE_ASSIGNED` except own and Sheriff, `KIT_PICK` contents etc.
+```ts
+interface PlayerView {
+  schemaVersion: 1; viewer: Seat | 'spectator';
+  myHand: CardId[]; myRole: Role | null;          // empty / null for spectators
+  players: { seat; name; characterId; life /* clamped ≥ 0 */; maxLife; handCount; inPlay: CardId[];
+             alive; isNpc; role: Role | null /* own, Sheriff, dead, or game over */ }[];
+  deckCount: number; discard: CardId[];           // whole discard pile: every card in it was shown face up
+  turn: TurnState; prompt: ViewPrompt | null;     // top prompt; KIT_PICK cards / CHOOSE_CHARACTER options only for its seat
+  currentActor: Seat | null; legalActions: LegalAction[];  // empty unless the viewer must act
+  winner: Winner | null; stats: SeatStats[];
+}
+```
+- Views carry card **ids** only; type/suit/rank come from the static, public deck data (`getCard`).
+- Never in a view: other players' hand contents, the deck order, the RNG state.
+- `redactEvent`: removes `cardIds` from `CARDS_DRAWN` for non-owners (Jesse Jones' victim also sees it; discard-pile
+  draws are public), `cardId` from `CARD_STOLEN(fromHand)` except for stealer and victim, `handCardIds` from
+  `CARDS_INHERITED` except for Vulture Sam and the dead player, and hides `ROLE_ASSIGNED` except own and Sheriff.
+- `defaultActionOnTimeout` defends automatically so an AFK player does not die for nothing: Missed! when shot, BANG!
+  against Indians!, Beer when dying; otherwise `END_TURN` in play, `PASS` in a Duel, the first choice offered, and the
+  most recently drawn cards for the discard phase.
 - The AI receives exactly the same `PlayerView` as a human would.
+- A 500-game property test checks every view and redacted event for leaks at every step.
 
 ### 2.7 Determinism
 `rng` is stored in state and advanced only by engine code. Same seed + same actions ⇒ same result (T-51). The server

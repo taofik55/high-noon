@@ -52,17 +52,9 @@ export interface ScenarioSpec {
 /** Same layout as the 4–7 player role tables (docs/02 §1.1), Sheriff in seat 0. */
 const DEFAULT_ROLES: Role[] = ["sheriff", "outlaw", "outlaw", "renegade", "deputy", "outlaw", "deputy"];
 
-// Defaults avoid characters whose abilities touch BANG!, damage, distance or elimination. Tests that exercise
-// draw phases or abilities must set characters explicitly.
-const DEFAULT_CHARACTERS: CharacterId[] = [
-  "lucky_duke",
-  "black_jack",
-  "kit_carlson",
-  "jesse_jones",
-  "pedro_ramirez",
-  "sid_ketchum",
-  "willy_the_kid",
-];
+// Every character has an ability; Willy the Kid's only lifts the BANG! limit, so he is the least intrusive default.
+// Tests about the BANG! limit or any ability set characters explicitly.
+const DEFAULT_CHARACTER: CharacterId = "willy_the_kid";
 
 function matches(cardId: CardId, spec: CardSpec): boolean {
   const card = getCard(cardId);
@@ -88,7 +80,7 @@ export function scenario(spec: ScenarioSpec): GameState {
 
   const players: PlayerState[] = specs.map((ps, seat) => {
     const role = ps.role ?? (DEFAULT_ROLES[seat] as Role);
-    const characterId = ps.character ?? (DEFAULT_CHARACTERS[seat] as CharacterId);
+    const characterId = ps.character ?? DEFAULT_CHARACTER;
     const maxLife = ps.maxLife ?? CHARACTERS[characterId].life + (role === "sheriff" ? 1 : 0);
     const alive = ps.alive ?? true;
     return {

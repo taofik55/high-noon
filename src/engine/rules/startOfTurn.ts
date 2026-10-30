@@ -29,7 +29,7 @@ export function startOfTurnStep(ctx: Ctx, seat: Seat): StartOfTurnOutcome {
 function resolveDynamite(ctx: Ctx, seat: Seat, dynamite: CardId): void {
   const p = playerAt(ctx.s, seat);
   removeFromPlay(p, dynamite);
-  if (drawCheck(ctx, seat, "dynamite", dynamiteExplodes)) {
+  if (drawCheck(ctx, seat, "dynamite", dynamiteExplodes, false)) {
     ctx.s.discard.push(dynamite);
     emit(ctx, { t: "DYNAMITE_EXPLODED", seat });
     // R-3: Dynamite has no killer, so no reward or penalty can follow.

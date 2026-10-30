@@ -1,8 +1,7 @@
 import type { CardId } from "../../cards/types";
-import { pick } from "../../rng";
 import type { GameState, Seat } from "../../state/types";
 import type { Target } from "../actions";
-import { emit, livingSeats, playerAt, type Ctx } from "../context";
+import { emit, livingSeats, playerAt, takeRandomFromHand, type Ctx } from "../context";
 import { effectiveDistance } from "../distance";
 import type { CardHandler } from "./handler";
 
@@ -28,8 +27,8 @@ function removeTargetedCard(ctx: Ctx, target: Target | undefined): { victim: Sea
   const victim = playerAt(ctx.s, target.seat);
   if (target.fromHand) {
     // Random hand card: drawn with the game RNG so the attacker cannot choose it.
-    const cardId = pick(ctx.s.rng, victim.hand);
-    victim.hand.splice(victim.hand.indexOf(cardId), 1);
+    const cardId = takeRandomFromHand(ctx, victim);
+    if (cardId === null) throw new Error("targeted hand is empty");
     return { victim: victim.seat, cardId, fromHand: true };
   }
   const cardId = target.cardId;

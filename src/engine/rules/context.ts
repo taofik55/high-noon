@@ -1,7 +1,9 @@
 import { cardType } from "../cards/deck";
 import type { CardId, CardType } from "../cards/types";
+import type { CharacterId } from "../characters/data";
 import type { GameEvent } from "../events/types";
-import type { GameState, PlayerState, Prompt, Seat } from "../state/types";
+import { pick } from "../rng";
+import type { GameState, PlayerState, Prompt, Seat, TurnPhase } from "../state/types";
 
 /**
  * Mutable working copy used inside one applyAction/createGame call. The public API clones the input state once
@@ -78,6 +80,24 @@ export function removeFromPlay(p: PlayerState, cardId: CardId): void {
   const i = p.inPlay.indexOf(cardId);
   if (i < 0) throw new Error(`Card ${cardId} not in play for seat ${p.seat}`);
   p.inPlay.splice(i, 1);
+}
+
+/** True if the player is alive and has that character's ability (abilities die with their owner). */
+export function hasAbility(p: PlayerState, id: CharacterId): boolean {
+  return p.alive && p.characterId === id;
+}
+
+export function setPhase(ctx: Ctx, phase: TurnPhase): void {
+  ctx.s.turn.phase = phase;
+  emit(ctx, { t: "PHASE", seat: ctx.s.turn.seat, phase });
+}
+
+/** Removes and returns a random card from the player's hand (game RNG), or null if the hand is empty. */
+export function takeRandomFromHand(ctx: Ctx, p: PlayerState): CardId | null {
+  if (p.hand.length === 0) return null;
+  const cardId = pick(ctx.s.rng, p.hand);
+  takeFromHand(p, cardId);
+  return cardId;
 }
 
 /** Removes `cardId` from the player's hand; throws if absent (callers validated legality already). */

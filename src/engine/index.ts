@@ -1,7 +1,10 @@
 // Pure, deterministic Bang! rules engine: the single source of truth for game rules (Golden rules 1–2).
-// Public API: docs/03 §2.1. toPlayerView, redactEvent and defaultActionOnTimeout arrive in Phase 4.
+// Public API: docs/03 §2.1.
 
 export { createGame, type CreateGameResult } from "./state/createGame";
+export { toPlayerView, type PlayerView, type PublicPlayer, type ViewPrompt, type Viewer } from "./view/playerView";
+export { redactEvent } from "./view/redact";
+export { defaultActionOnTimeout } from "./view/timeout";
 export { applyAction, type ApplyResult } from "./rules/apply";
 export { currentActor, expandLegalActions, getLegalActions, isActionLegal, whyIllegal } from "./rules/legal";
 export { effectiveDistance, seatDistance, weaponRange } from "./rules/distance";
@@ -34,4 +37,4 @@ export type {
   Winner,
 } from "./state/types";
 export type { DamageCause, DiscardReason, GameEvent, GameEventType, SeatPublic } from "./events/types";
-export type { Action, ActionType, Choice, LegalAction, Target } from "./rules/actions";
+export type { Action, ActionType, Choice, DrawSource, LegalAction, PlayAs, Target } from "./rules/actions";

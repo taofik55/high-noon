@@ -1,8 +1,9 @@
 import { CHARACTERS } from "../characters/data";
-import { promptActor, type Prompt, type Seat, type TurnPhase } from "../state/types";
+import { promptActor, type Prompt, type Seat } from "../state/types";
 import { resolveMultiTarget } from "./cards/multi";
-import { emit, nextLivingSeat, playerAt, pushPrompt, topPrompt, type Ctx } from "./context";
+import { emit, hasAbility, nextLivingSeat, playerAt, pushPrompt, setPhase, topPrompt, type Ctx } from "./context";
 import { drawCards } from "./draw";
+import { startDrawPhase } from "./drawPhase";
 import { startOfTurnStep } from "./startOfTurn";
 
 const MAX_STEPS = 10_000;
@@ -14,6 +15,7 @@ const MAX_STEPS = 10_000;
 export function advance(ctx: Ctx): void {
   for (let step = 0; step < MAX_STEPS; step++) {
     if (ctx.s.winner) return;
+    suzyLafayette(ctx);
     const top = topPrompt(ctx.s);
     if (top) {
       if (promptActor(top) !== null) return;
@@ -35,9 +37,15 @@ function resolveDriver(ctx: Ctx, prompt: Prompt): void {
   }
 }
 
-function setPhase(ctx: Ctx, phase: TurnPhase): void {
-  ctx.s.turn.phase = phase;
-  emit(ctx, { t: "PHASE", seat: ctx.s.turn.seat, phase });
+/**
+ * R-27: Suzy Lafayette draws as soon as her hand is empty, in or out of her turn. advance() runs after every action
+ * and every automatic step, so this is "after the current effect step resolves". Not during setup (no hands yet).
+ */
+function suzyLafayette(ctx: Ctx): void {
+  if (ctx.s.turn.phase === "setup") return;
+  for (const p of ctx.s.players) {
+    if (hasAbility(p, "suzy_lafayette") && p.hand.length === 0) drawCards(ctx, p.seat, 1);
+  }
 }
 
 function startTurn(ctx: Ctx, seat: Seat): void {
@@ -74,10 +82,8 @@ function stepTurn(ctx: Ctx): void {
       }
       return;
     case "draw":
-      // Character draw variants (Black Jack, Jesse, Kit, Pedro) arrive in Phase 4.
-      drawCards(ctx, seat, 2);
-      setPhase(ctx, "play");
-      pushPrompt(ctx, { kind: "PLAY", seat });
+      // Opens the play phase, or leaves a DRAW_CHOICE / KIT_PICK prompt whose resolution opens it.
+      startDrawPhase(ctx, seat);
       return;
     case "play": {
       // The PLAY prompt was popped by END_TURN.

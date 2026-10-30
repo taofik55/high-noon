@@ -33,8 +33,13 @@ export type GameEvent =
   | { t: "CHARACTER_CHOSEN"; seat: Seat; characterId: CharacterId }
   | { t: "TURN_STARTED"; seat: Seat; turn: number }
   | { t: "PHASE"; seat: Seat; phase: TurnPhase }
-  /** `cardIds` is private to the drawing seat. */
-  | { t: "CARDS_DRAWN"; seat: Seat; count: number; cardIds: CardId[]; from: "deck" | "discard" | "player"; fromSeat?: Seat }
+  /**
+   * `cardIds` is private to the drawing seat (and to `fromSeat` when taken from a player); always set by the engine,
+   * removed by redactEvent. Draws from the discard pile are public.
+   */
+  | { t: "CARDS_DRAWN"; seat: Seat; count: number; cardIds?: CardId[]; from: "deck" | "discard" | "player"; fromSeat?: Seat }
+  /** Vulture Sam takes an eliminated player's cards. `handCardIds` is private to `seat` (and the dead `from`). */
+  | { t: "CARDS_INHERITED"; seat: Seat; from: Seat; handCount: number; handCardIds?: CardId[]; inPlay: CardId[] }
   | { t: "CARD_REVEALED"; seat: Seat; cardId: CardId; reason: "black_jack" }
   | {
       t: "DRAW_CHECK";
@@ -44,6 +49,7 @@ export type GameEvent =
       chosen: CardId;
       success: boolean;
     }
+  /** `asType`: Calamity Janet's Missed! played as BANG! (R-19). */
   | { t: "CARD_PLAYED"; seat: Seat; cardId: CardId; asType?: CardType; target?: { seat?: Seat; cardId?: CardId; fromHand?: true } }
   | { t: "EQUIPPED"; seat: Seat; cardId: CardId; replaced?: CardId }
   | { t: "JAILED"; seat: Seat; by: Seat }

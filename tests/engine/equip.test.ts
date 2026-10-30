@@ -73,14 +73,17 @@ describe("Volcanic (T-10)", () => {
   });
 
   it("T-10 equipping Volcanic after a BANG! lifts the limit for the rest of the turn", () => {
-    const s = scenario({ players: [{ hand: ["bang", "bang", "volcanic"] }, {}, {}, {}], turn: { bangsPlayed: 1 } });
+    const s = scenario({ players: [{ character: "black_jack", hand: ["bang", "bang", "volcanic"] }, {}, {}, {}], turn: { bangsPlayed: 1 } });
     expect(getLegalActions(s, 0).filter((l) => l.type === "PLAY_CARD")).toHaveLength(1);
     const { state } = applyAction(s, 0, { type: "PLAY_CARD", cardId: firstInHand(s, 0, "volcanic") });
     expect(getLegalActions(state, 0).filter((l) => l.type === "PLAY_CARD")).toHaveLength(2);
   });
 
   it("T-10 replacing Volcanic restores the limit", () => {
-    const s = scenario({ players: [{ hand: ["bang", "schofield"], inPlay: ["volcanic"] }, {}, {}, {}], turn: { bangsPlayed: 1 } });
+    const s = scenario({
+      players: [{ character: "black_jack", hand: ["bang", "schofield"], inPlay: ["volcanic"] }, {}, {}, {}],
+      turn: { bangsPlayed: 1 },
+    });
     const { state } = applyAction(s, 0, { type: "PLAY_CARD", cardId: firstInHand(s, 0, "schofield") });
     expect(getLegalActions(state, 0)).toEqual([{ type: "END_TURN" }]);
   });

@@ -23,7 +23,7 @@ describe("BANG! and Missed! (docs/02 §6.1)", () => {
   });
 
   it("T-10 only one BANG! per turn (BANG! part)", () => {
-    const s = scenario({ players: [{ hand: ["bang", "bang"] }, {}, {}, {}] });
+    const s = scenario({ players: [{ character: "black_jack", hand: ["bang", "bang"] }, {}, {}, {}] });
     const [b1, b2] = handOf(s, 0, "bang") as [CardId, CardId];
     const { state } = run(s, [
       [0, { type: "PLAY_CARD", cardId: b1, target: { seat: 1 } }],
@@ -37,7 +37,10 @@ describe("BANG! and Missed! (docs/02 §6.1)", () => {
   });
 
   it("T-10 the BANG! counter resets on the next turn", () => {
-    const s = scenario({ players: [{ hand: ["bang"] }, { hand: ["bang"] }, {}, {}], turn: { bangsPlayed: 1 } });
+    const s = scenario({
+      players: [{ character: "black_jack", hand: ["bang"] }, { character: "black_jack", hand: ["bang"] }, {}, {}],
+      turn: { bangsPlayed: 1 },
+    });
     expect(getLegalActions(s, 0).some((l) => l.type === "PLAY_CARD")).toBe(false);
     const { state } = applyAction(s, 0, { type: "END_TURN" });
     expect(state.turn).toMatchObject({ seat: 1, bangsPlayed: 0 });

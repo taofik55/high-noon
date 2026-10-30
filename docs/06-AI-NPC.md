@@ -64,12 +64,14 @@ Responses: use Missed!/Barrel automatically; in Duel keep discarding BANG! while
 ## 5. Choices & prompts
 | Prompt | Policy |
 |---|---|
-| DRAW_CHOICE (Jesse) | steal from the enemy with most cards; Pedro takes discard top if it's valuable; Kit keeps 2 best |
+| DRAW_CHOICE | Jesse: steal from the enemy with most cards; Pedro: take the discard top if it's valuable |
+| KIT_PICK | return the least valuable of the 3 |
 | STORE_PICK | highest `evaluateCardValue` |
-| LUCKY_PICK | the favorable card for the current check |
-| CHOOSE_TARGET_CARD | take/discard best in-play card of an enemy (weapon > barrel > mustang > scope), remove Jail/Dynamite from self/allies when that is the goal, else random hand |
+| Panic! / Cat Balou target (in the PLAY_CARD `Target`) | best in-play card of an enemy (weapon > barrel > mustang > scope), Jail/Dynamite off an ally when that is the goal (never yourself, R-13), else a random hand card |
 | DISCARD_EXCESS | discard lowest value |
-| DYING | heal if possible |
+| DYING | heal if possible (Beer, Sid Ketchum ability) |
+
+Lucky Duke needs no policy: the engine always keeps the favorable draw! card for him (R-23).
 
 ## 6. Simulation harness (`scripts/sim.ts`, `pnpm sim`)
 - Runs N full games with all-NPC seats, random player counts and difficulties, seeded.

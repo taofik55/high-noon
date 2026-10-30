@@ -1,17 +1,22 @@
 import type { Seat } from "../state/types";
-import { emit, hasCardType, playerAt, pushPrompt, type Ctx } from "./context";
+import { emit, hasAbility, hasCardType, playerAt, pushPrompt, type Ctx } from "./context";
 import { drawCheck, isHearts } from "./drawCheck";
 
 /**
  * Starts the response to one BANG!-like hit (BANG!, Calamity's Missed!-as-BANG!, each Gatling target).
- * R-9: Barrel checks run automatically first since they have no downside. If they already cancel the hit there is
- * no prompt (the Barrel is public, so this leaks nothing); otherwise the target is asked for the remaining Missed!
- * effects, which makes Barrel + Missed! against Slab (R-10) work without special cases.
+ * R-9: Barrel checks run automatically first since they have no downside — Jourdonnais' built-in Barrel, then a real
+ * one — stopping once enough Missed! effects are reached. If they already cancel the hit there is no prompt (Barrels
+ * are public, so this leaks nothing); otherwise the target is asked for the remaining Missed! effects, which makes
+ * Barrel + Missed! against Slab (R-10) work without special cases.
  */
 export function startBangResponse(ctx: Ctx, target: Seat, attacker: Seat, source: "bang" | "gatling", needed: number): void {
+  const p = playerAt(ctx.s, target);
   let got = 0;
-  // Jourdonnais' built-in Barrel is checked before the real one (R-9) from Phase 4.
-  if (got < needed && hasCardType(playerAt(ctx.s, target), "barrel") && drawCheck(ctx, target, "barrel", isHearts)) {
+  if (got < needed && hasAbility(p, "jourdonnais") && drawCheck(ctx, target, "jourdonnais", isHearts)) {
+    got += 1;
+    emit(ctx, { t: "MISSED", seat: target, via: "jourdonnais" });
+  }
+  if (got < needed && hasCardType(p, "barrel") && drawCheck(ctx, target, "barrel", isHearts)) {
     got += 1;
     emit(ctx, { t: "MISSED", seat: target, via: "barrel" });
   }

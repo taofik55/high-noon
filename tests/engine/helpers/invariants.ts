@@ -16,8 +16,8 @@ import {
 /** Returns a list of broken invariants (empty = fine). */
 export function checkInvariants(s: GameState): string[] {
   const problems: string[] = [];
-  // General Store cards sit in the prompt until picked.
-  const storeCards = s.stack.flatMap((pr) => (pr.kind === "STORE_PICK" ? pr.revealed : []));
+  // General Store and Kit Carlson cards sit in their prompt until picked.
+  const storeCards = s.stack.flatMap((pr) => (pr.kind === "STORE_PICK" ? pr.revealed : pr.kind === "KIT_PICK" ? pr.cards : []));
   const all = [...s.deck, ...s.discard, ...storeCards, ...s.players.flatMap((p) => [...p.hand, ...p.inPlay])];
   if (all.length !== ALL_CARD_IDS.length) problems.push(`card count ${all.length} != ${ALL_CARD_IDS.length}`);
   if (new Set(all).size !== all.length) problems.push("duplicate card ids across zones");
@@ -29,6 +29,7 @@ export function checkInvariants(s: GameState): string[] {
     // Life is dealt only once setup ends (choose_of_2 mode).
     if (s.turn.phase !== "setup" && p.alive && p.life <= 0 && !dying) problems.push(`seat ${p.seat} alive at ${p.life} life without DYING`);
   }
+  if (s.players.filter((p) => p.role === "sheriff").length !== 1) problems.push("not exactly one Sheriff");
   if (s.winner && s.stack.length > 0) problems.push("game over but prompts remain");
   if (!s.winner && currentActor(s) === null) problems.push("no actor but game not over");
   for (const prompt of s.stack) {
@@ -47,8 +48,10 @@ export interface RandomPlayResult {
   steps: number;
 }
 
+export type StepHook = (before: GameState, seat: Seat, action: Action, after: GameState, events: GameEvent[]) => void;
+
 /** Plays uniformly random legal actions, chosen by a separate seeded RNG, checking invariants after each step. */
-export function playRandom(start: GameState, seed: string, maxSteps = 3000): RandomPlayResult {
+export function playRandom(start: GameState, seed: string, maxSteps = 3000, onStep?: StepHook): RandomPlayResult {
   const rng = createRng(seed);
   let state = start;
   const events: GameEvent[] = [];
@@ -61,6 +64,7 @@ export function playRandom(start: GameState, seed: string, maxSteps = 3000): Ran
     if (options.length === 0) throw new Error(`seat ${seat} has no legal action`);
     const action = pick(rng, options);
     const r = applyAction(state, seat, action);
+    onStep?.(state, seat, action, r.state, r.events);
     state = r.state;
     events.push(...r.events);
     actions.push([seat, action]);
