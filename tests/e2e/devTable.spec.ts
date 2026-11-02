@@ -5,6 +5,8 @@ test.describe("/dev/table solo game", () => {
     await page.goto("/dev/table");
     await page.evaluate(() => window.localStorage.clear());
     await page.reload();
+    // Typing before hydration would be wiped; Start is enabled once React owns the form.
+    await expect(page.getByTestId("setup-start")).toBeEnabled();
   });
 
   test("a full solo game runs to the game-over screen (autoplay, bots in a Web Worker)", async ({ page }) => {

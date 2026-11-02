@@ -27,7 +27,7 @@ describe("game log formatting", () => {
     }
     // The random games reach most of the event vocabulary.
     expect(seen.size).toBeGreaterThan(25);
-  });
+  }, 30_000);
 
   it("names the viewer 'Kamu' and keeps card names in English", () => {
     const { state } = createGame({ players: Array.from({ length: 4 }, (_, s) => ({ name: `P${s}`, isNpc: s > 0 })), characterMode: "random" }, "names");

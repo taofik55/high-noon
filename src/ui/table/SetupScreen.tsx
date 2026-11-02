@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { Difficulty } from "@/ai";
 import type { CharacterMode } from "@/engine";
 import type { SoloConfig } from "@/net";
@@ -8,6 +8,16 @@ import { t } from "../i18n";
 import { Button } from "./Button";
 
 const DIFFICULTIES: Difficulty[] = ["easy", "medium", "hard"];
+
+const noSubscribe = () => () => {};
+
+/**
+ * False during server rendering and hydration, true once React owns the form. Anything typed before that would be
+ * wiped by hydration, so Start stays disabled until then (and e2e tests wait for it).
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(noSubscribe, () => true, () => false);
+}
 
 interface SetupScreenProps {
   hasSaved: boolean;
@@ -17,6 +27,7 @@ interface SetupScreenProps {
 }
 
 export function SetupScreen({ hasSaved, onStart, onResume, onDiscardSaved }: SetupScreenProps) {
+  const hydrated = useHydrated();
   const [name, setName] = useState("");
   const [count, setCount] = useState(5);
   const [global, setGlobal] = useState<Difficulty>("medium");
@@ -125,7 +136,7 @@ export function SetupScreen({ hasSaved, onStart, onResume, onDiscardSaved }: Set
           </select>
         </label>
 
-        <Button tone="primary" testId="setup-start" onClick={() => onStart({ playerName: name, playerCount: count, difficulties, characterMode })}>
+        <Button tone="primary" testId="setup-start" disabled={!hydrated} onClick={() => onStart({ playerName: name, playerCount: count, difficulties, characterMode })}>
           {t("setup.start")}
         </Button>
       </div>

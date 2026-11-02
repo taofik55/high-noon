@@ -20,6 +20,8 @@ async function startGame(page: Page, players = "4") {
   await page.goto("/play/solo");
   await page.evaluate(() => window.localStorage.clear());
   await page.reload();
+  // Typing before hydration would be wiped; Start is enabled once React owns the form.
+  await expect(page.getByTestId("setup-start")).toBeEnabled();
   await page.getByTestId("setup-name").fill("Tester");
   await page.getByTestId("setup-count").selectOption(players);
   await page.getByTestId("setup-difficulty").selectOption("easy");
