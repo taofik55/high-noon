@@ -293,6 +293,25 @@ any successful human action clears the flag). Then runs the NPC loop and commits
 Lobby presence uses a Supabase Realtime **presence** channel `room:<code>`; slots list via `postgres_changes` on
 `room_players`.
 
+Implemented (Phase 10):
+- Handlers are thin (`server/http.ts`: cookie auth via `auth.getUser()`, per-user token bucket, zod bodies from
+  `lib/rooms/api.ts`, `ApiError` code → status); the logic lives in `server/rooms/roomService.ts` and
+  `server/rooms/startGame.ts` so it is tested directly against the local stack (`tests/db/rooms.test.ts`). Lobby rules
+  shared with the UI are pure functions in `lib/rooms/rules.ts`; error codes in `lib/apiErrors.ts` (the UI never
+  imports `src/server`).
+- `seat` ops: `ready | leave | add_npc | remove_npc | npc_difficulty | kick`, lobby status only. Outsiders get
+  `ROOM_NOT_FOUND` (same as a wrong code). Joining is idempotent; a member may re-join a running game's room.
+- The host counts as ready (pressing Start). Settings changes do not reset ready flags. When the host leaves, the
+  earliest-joined human becomes host; when the last human leaves, the room is deleted.
+- Start claims the room with `update … set status='in_game' where status='lobby'` (a double start makes one game),
+  shuffles seats with `crypto.getRandomValues`, seeds the engine with `crypto.randomUUID()`, inserts `games` and
+  `game_seats`, publishes views and events through `commit_game_action` (`server/game/commitPayload.ts`: one public
+  row per event plus private rows only where a human's redaction differs), then sets `current_game_id`. A failure
+  after the claim deletes the game and reopens the lobby. No NPC moves yet: the server NPC loop is Phase 11.
+- Lobby client (`ui/lobby/useLobby.ts`): reads through RLS; `postgres_changes` DELETE events cannot be filtered and
+  carry only the primary key, so they are matched by `room_id` on the client; any change triggers a refetch, with a
+  15 s poll and a refetch on tab focus as fallbacks. Members follow `rooms.current_game_id` to `/play/online/[id]`.
+
 ## 6. Security checklist
 - RLS on every table; clients can only SELECT their allowed rows. All writes go through route handlers using the
   secret key, after checking `auth.uid()` membership/host rights.

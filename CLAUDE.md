@@ -40,7 +40,7 @@ interpretation, update the relevant doc in the same commit.
 ```
 src/
   app/                    Next.js routes: pages + route handlers
-    api/rooms/            create / join / leave / update-seat / start
+    api/rooms/            create, join, [id]/seat (ready/leave/NPC/kick), [id]/settings, [id]/start
     api/games/[id]/       action / timeout / resync
   engine/                 PURE rules engine (see Golden rule 1–2)
     cards/  characters/  rules/  state/  events/  view/  rng.ts  index.ts
