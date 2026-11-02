@@ -24,7 +24,9 @@ export async function parseBody<T extends z.ZodType>(request: Request, schema: T
   return parsed.data;
 }
 
-export const ROOMS_RATE_LIMIT: RateLimit = { capacity: 20, refillPerSec: 2 };
+export const ROOMS_RATE_LIMIT: RateLimit = { name: "rooms", capacity: 20, refillPerSec: 2 };
+/** Game calls: a burst for quick responses, then a few per second (docs/03 §6). */
+export const GAME_RATE_LIMIT: RateLimit = { name: "game", capacity: 30, refillPerSec: 5 };
 
 /**
  * Wraps a route handler body: authenticates, rate-limits per user, and turns ApiError into `{ error: code }` JSON
@@ -33,10 +35,10 @@ export const ROOMS_RATE_LIMIT: RateLimit = { capacity: 20, refillPerSec: 2 };
 export async function handleApi(limit: RateLimit, run: (user: AuthedUser) => Promise<unknown>): Promise<NextResponse> {
   try {
     const user = await requireUser();
-    if (!takeToken(user.id, limit)) throw new ApiError("RATE_LIMITED");
+    if (!takeToken(`${limit.name}:${user.id}`, limit)) throw new ApiError("RATE_LIMITED");
     return NextResponse.json(await run(user));
   } catch (e) {
-    if (e instanceof ApiError) return NextResponse.json({ error: e.code, message: e.message }, { status: e.status });
+    if (e instanceof ApiError) return NextResponse.json({ ...e.details, error: e.code, message: e.message }, { status: e.status });
     console.error("[api] unexpected error", e);
     return NextResponse.json({ error: "INTERNAL" }, { status: 500 });
   }

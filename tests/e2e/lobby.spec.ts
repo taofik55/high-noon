@@ -1,56 +1,11 @@
-import { expect as baseExpect, test, type Browser, type Page } from "@playwright/test";
+import { expect as baseExpect, test } from "@playwright/test";
+import { closePlayers, hostRoom, joinByLink, newPlayer, signIn, supabaseUp } from "./onlineHelpers";
 
 // The dev server is shared with the 3D suites, so API calls can be slow; 10 s still stays under the lobby's 15 s
 // fallback poll, so passing checks on the other browser prove the realtime path.
 const expect = baseExpect.configure({ timeout: 10_000 });
 
-// Two separate browser contexts stand in for "normal + incognito" (Phase 10 done criterion). Needs the local
-// Supabase stack (pnpm db:start) and .env.local, like the dev server the tests run against.
-try {
-  process.loadEnvFile(".env.local");
-} catch {
-  // no local env: the suite skips itself below
-}
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-async function supabaseUp(): Promise<boolean> {
-  if (!SUPABASE_URL) return false;
-  try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
-      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "" },
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-async function newPlayer(browser: Browser): Promise<Page> {
-  const context = await browser.newContext();
-  return context.newPage();
-}
-
-async function signIn(page: Page, name: string): Promise<void> {
-  await expect(page.getByTestId("nickname-form")).toBeVisible();
-  await page.getByTestId("nickname-input").fill(name);
-  await page.getByTestId("nickname-submit").click();
-}
-
-async function hostRoom(page: Page, name: string): Promise<string> {
-  await page.goto("/");
-  await signIn(page, name);
-  await page.getByTestId("create-room").click();
-  await expect(page).toHaveURL(/\/r\/[A-HJ-NP-Z2-9]{6}$/, { timeout: 20_000 });
-  await expect(page.getByTestId("lobby")).toBeVisible();
-  return (await page.getByTestId("lobby-code").textContent()) ?? "";
-}
-
-async function joinByLink(page: Page, code: string, name: string): Promise<void> {
-  await page.goto(`/r/${code}`);
-  await signIn(page, name);
-  await page.getByTestId("join-room").click();
-  await expect(page.getByTestId("lobby")).toBeVisible();
-}
+// Two separate browser contexts stand in for "normal + incognito" (Phase 10 done criterion).
 
 test.describe("rooms and lobby (docs/01 §5.2)", () => {
   // Two signed-in browsers per test on a dev server that may be busy compiling the 3D suites.
@@ -58,6 +13,7 @@ test.describe("rooms and lobby (docs/01 §5.2)", () => {
   test.beforeAll(async () => {
     test.skip(!(await supabaseUp()), "local Supabase is not running (pnpm db:start)");
   });
+  test.afterEach(closePlayers);
 
   test("two browsers create, join, fill with bots, ready up and start", async ({ browser }) => {
     const ana = await newPlayer(browser);
@@ -91,14 +47,10 @@ test.describe("rooms and lobby (docs/01 §5.2)", () => {
     await expect(ana.getByTestId("start-game")).toBeEnabled();
     await ana.getByTestId("start-game").click();
 
-    // Both land on the same game, each seeing only their own view.
+    // Both land on the same game table.
     await expect(ana).toHaveURL(/\/play\/online\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     await expect(budi).toHaveURL(ana.url(), { timeout: 20_000 });
-    for (const page of [ana, budi]) {
-      await expect(page.getByTestId("online-game")).toBeVisible();
-      await expect(page.getByTestId("online-role")).not.toHaveText("Role tersembunyi");
-      await expect(page.locator('[data-testid^="online-seat-"]')).toHaveCount(4);
-    }
+    for (const page of [ana, budi]) await expect(page.getByTestId("game-table")).toBeVisible({ timeout: 30_000 });
   });
 
   test("the host can kick a player, who is told so", async ({ browser }) => {

@@ -1,5 +1,9 @@
 "use client";
 
+import { useStore } from "zustand";
+import { t } from "../i18n";
+import { Button } from "./Button";
+import { GameOver } from "./GameOver";
 import { GameScreen } from "./GameScreen";
 import { SetupScreen } from "./SetupScreen";
 import { useSoloSession } from "./useSoloSession";
@@ -10,6 +14,7 @@ import { useSoloSession } from "./useSoloSession";
  */
 export function DevTable() {
   const session = useSoloSession();
+  const view = useStore(session.store, (s) => s.presentedView);
   if (!session.playing) {
     return (
       <SetupScreen
@@ -20,5 +25,21 @@ export function DevTable() {
       />
     );
   }
-  return <GameScreen store={session.store} autoplay={session.autoplay} onAutoplay={session.setAutoplay} onNewGame={session.newGame} />;
+  return (
+    <GameScreen
+      store={session.store}
+      headerExtra={
+        <>
+          <label className="flex items-center gap-1">
+            <input type="checkbox" data-testid="toggle-autoplay" checked={session.autoplay} onChange={(e) => session.setAutoplay(e.target.checked)} />
+            {t("table.autoplay")}
+          </label>
+          <Button onClick={session.newGame} testId="btn-new-game">
+            {t("table.newGame")}
+          </Button>
+        </>
+      }
+      gameOver={view && <GameOver view={view} onNewGame={session.newGame} />}
+    />
+  );
 }

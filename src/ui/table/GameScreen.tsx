@@ -1,27 +1,32 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
 import { effectiveDistance, weaponRange, type CardId } from "@/engine";
 import { t } from "../i18n";
 import type { GameStoreState } from "../store/gameStore";
-import { Button } from "./Button";
 import { CardChip } from "./CardChip";
 import { GameLog } from "./GameLog";
-import { GameOver } from "./GameOver";
 import { PromptPanel } from "./PromptPanel";
 import { SeatPanel } from "./SeatPanel";
 import { useTableInteraction } from "./useTableInteraction";
 
 interface GameScreenProps {
   store: StoreApi<GameStoreState>;
-  autoplay: boolean;
-  onAutoplay: (on: boolean) => void;
-  onNewGame: () => void;
+  /** Mode-specific controls in the header (solo: autoplay, new game; online: timer, autoplay). */
+  headerExtra?: ReactNode;
+  /** Mode-specific banners (online: AFK, reconnecting). */
+  overlay?: ReactNode;
+  /** Shown once the presented view has a winner. */
+  gameOver: ReactNode;
 }
 
-/** The 2D debug table (Phase 6): plain HTML on top of the shared interaction state machine. */
-export function GameScreen({ store, autoplay, onAutoplay, onNewGame }: GameScreenProps) {
+/**
+ * The 2D debug table (Phase 6): plain HTML on top of the shared interaction state machine. Online games can use it
+ * too (`?table=2d`), which keeps end-to-end runs light.
+ */
+export function GameScreen({ store, headerExtra, overlay, gameOver }: GameScreenProps) {
   const ti = useTableInteraction(store);
   const thinking = useStore(store, (s) => s.thinking);
   const log = useStore(store, (s) => s.log);
@@ -37,7 +42,7 @@ export function GameScreen({ store, autoplay, onAutoplay, onNewGame }: GameScree
   const n = view.players.length;
 
   return (
-    <div data-testid="game-table" className="flex min-h-screen flex-col gap-4 bg-stone-950 p-4 text-amber-50 lg:flex-row">
+    <div data-testid="game-table" className="relative flex min-h-screen flex-col gap-4 bg-stone-950 p-4 text-amber-50 lg:flex-row">
       <div className="flex flex-1 flex-col gap-3">
         <header className="flex flex-wrap items-center gap-3 text-sm">
           <h1 className="text-lg font-bold tracking-widest text-amber-400 uppercase">{t("table.title")}</h1>
@@ -48,13 +53,7 @@ export function GameScreen({ store, autoplay, onAutoplay, onNewGame }: GameScree
               <input type="checkbox" data-testid="toggle-fast" checked={speed === "fast"} onChange={(e) => setSpeed(e.target.checked ? "fast" : "normal")} />
               {t("table.fast")}
             </label>
-            <label className="flex items-center gap-1">
-              <input type="checkbox" data-testid="toggle-autoplay" checked={autoplay} onChange={(e) => onAutoplay(e.target.checked)} />
-              {t("table.autoplay")}
-            </label>
-            <Button onClick={onNewGame} testId="btn-new-game">
-              {t("table.newGame")}
-            </Button>
+            {headerExtra}
           </div>
         </header>
 
@@ -108,7 +107,8 @@ export function GameScreen({ store, autoplay, onAutoplay, onNewGame }: GameScree
         <GameLog log={log} className="flex-1" />
       </aside>
 
-      {view.winner && <GameOver view={view} onNewGame={onNewGame} />}
+      {overlay}
+      {view.winner && gameOver}
     </div>
   );
 }

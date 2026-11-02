@@ -135,7 +135,9 @@ export async function seatAction(db: Db, userId: string, roomId: string, op: Sea
   const me = slots.find((s) => s.userId === userId);
   // Outsiders learn nothing about a room they are not in.
   if (!me) throw new ApiError("ROOM_NOT_FOUND");
-  if (room.status !== "lobby") throw new ApiError("ROOM_NOT_IN_LOBBY");
+  // After a game ends, leaving is allowed again; everything else waits for the lobby.
+  const leavingFinished = op.op === "leave" && room.status === "finished";
+  if (room.status !== "lobby" && !leavingFinished) throw new ApiError("ROOM_NOT_IN_LOBBY");
   const isHost = room.host_id === userId;
   const hostOnly = () => {
     if (!isHost) throw new ApiError("NOT_HOST");

@@ -14,7 +14,11 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] }, testIgnore: /(lobby|online)\.spec\.ts$/ },
+    // Multi-browser online suites depend on realtime timing: run them after the CPU-heavy 3D suites, not beside them.
+    { name: "online", use: { ...devices["Desktop Chrome"] }, testMatch: /(lobby|online)\.spec\.ts$/, dependencies: ["chromium"] },
+  ],
   webServer: {
     command: "pnpm dev",
     url: `http://localhost:${PORT}`,

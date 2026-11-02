@@ -282,6 +282,35 @@ any successful human action clears the flag). Then runs the NPC loop and commits
 5. Timer ring uses the `deadline` field in the view; when it passes, the client calls `/timeout` (jittered 0–1.5 s so
    not everyone fires at once; the server tolerates duplicates via version check).
 
+### 5.3a Implemented (Phase 11)
+- `server/game/gameService.ts` runs §5.1–5.2 against a `GameRepo` (`supabaseRepo.ts` in production, an in-memory repo
+  in tests). **Every action is committed as its own version** (deviation from "one commit per request"): realtime
+  then delivers each version's `player_views` row, so the Director stages bot steps one by one with the exact HUD
+  of that moment, as in solo. A request's bot loop stops on `VERSION_CONFLICT` (another request is moving the game);
+  a human action retries once after re-validating.
+- `games.state` holds `ServerGame = { schema: 1, game: GameState, ai: { memories, rngs } }`: bots keep their memory
+  and RNG stream between requests, for every seat, so an AFK takeover plays with what that seat legitimately saw.
+- `player_views.view` is an `OnlineView` = `PlayerView` + `deadline` (timer ring), `actor` (whose action made this
+  version) and `afk` (a bot plays this seat). No extra columns.
+- `POST /api/games/[id]/resync { reclaim? }`: "I am here". `reclaim` clears the caller's AFK flag through an
+  event-less commit (all views refresh at once). It doubles as a watchdog: if a bot should be moving, the loop
+  continues there. Clients call it on arrival (this also starts bots after a game start) and after 10 s without a new
+  version while someone else must act. Any own action also clears AFK. AFK takeover plays medium.
+- `OnlineAdapter`: views wait in a pending map and are emitted in order; events for all pending versions are fetched
+  in one query. `send` resolves only after the resulting version was emitted (or 5 s, then a refetch), so the UI never
+  acts twice on one view. Realtime channel topics are unique per adapter instance (`supabase.channel()` returns an
+  existing channel with the same topic). Deadline reports are jittered 0–1.5 s.
+- At game over: `rooms.status = finished` (only if the room still points at this game) and `player_stats` updated
+  for each human. `POST /api/rooms/[id]/rematch { mode: "rematch" | "lobby" }` (host): a new game with the same
+  slots, or back to the lobby with ready flags reset; every client follows `rooms.current_game_id` / `status`.
+  Leaving is allowed again once a game is finished.
+- Rate limits: rooms 20 burst / 2 per s, game calls 30 burst / 5 per s, per user and endpoint family.
+- The online 3D table is the same `GameTable3D` as solo; mode-specific controls (timer, AFK banner, reconnect toast,
+  rematch) are passed in. A development-only autoplay lets a medium bot play the local seat from the local view (e2e).
+- `/play/online/[id]?table=2d` shows the same game on the 2D debug table (same adapter and store): lighter for weak
+  machines, and what the two-browser e2e uses (two software-rendered 3D pages starve a headless CPU). Playwright runs
+  the multi-browser suites (`lobby`, `online`) as a separate project after the 3D suites.
+
 ### 5.4 Rooms API (route handlers)
 - `POST /api/rooms` → create room + host slot, returns code.
 - `POST /api/rooms/join { code }` → validate status lobby & capacity, insert `room_players`.

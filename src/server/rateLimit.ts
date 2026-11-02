@@ -9,6 +9,8 @@ interface Bucket {
 const buckets = new Map<string, Bucket>();
 
 export interface RateLimit {
+  /** Separate buckets per endpoint family. */
+  name: string;
   capacity: number;
   refillPerSec: number;
 }

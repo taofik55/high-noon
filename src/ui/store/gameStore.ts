@@ -1,7 +1,7 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { IllegalActionError, type Action, type PlayerView, type Seat } from "@/engine";
 import type { GameAdapter, GameUpdate } from "@/net";
-import { t } from "../i18n";
+import { t, type MessageKey } from "../i18n";
 import { formatEvent, type LogLine } from "../log/formatEvent";
 
 export type Speed = "normal" | "fast";
@@ -195,7 +195,16 @@ export function createGameStore(): StoreApi<GameStoreState> {
         try {
           await adapter.send(action);
         } catch (e) {
-          set({ error: e instanceof IllegalActionError ? t("error.illegal", { reason: e.reason }) : String(e) });
+          // Online refusals carry an API error code (OnlineActionError); show the translated message, not the code.
+          const code = e instanceof Error && "code" in e && typeof e.code === "string" ? e.code : null;
+          set({
+            error:
+              e instanceof IllegalActionError
+                ? t("error.illegal", { reason: e.reason })
+                : code
+                  ? t(`rooms.error.${code}` as MessageKey)
+                  : String(e),
+          });
         } finally {
           set({ sending: false });
         }

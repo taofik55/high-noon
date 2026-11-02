@@ -232,6 +232,10 @@ alter publication supabase_realtime add table public.player_views, public.room_p
 
 > All statements run in one transaction per RPC call, so events and views appear atomically to readers.
 
+> Implemented (Phase 11): `games.state` stores the server wrapper `{ schema: 1, game: GameState, ai: { memories,
+> rngs } }` (bot memories survive between requests); `player_views.view` stores the `PlayerView` plus `deadline`,
+> `actor` and `afk`. One RPC call per engine action. No schema change.
+
 ## 4. Migration `0002_housekeeping.sql` (optional)
 ```sql
 -- Close lobbies idle > 6h and delete finished rooms > 7 days. Requires pg_cron extension (enable in dashboard).

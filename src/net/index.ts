@@ -4,3 +4,4 @@ export type { GameAdapter, GameUpdate } from "./types";
 export { LocalAdapter, type LocalAdapterOptions } from "./local/LocalAdapter";
 export { InlineAiRunner, WorkerAiRunner, createAiRunner, computeAi, type AiRunner, type AiRequest, type AiResponse } from "./local/aiRunner";
 export { MemorySoloStorage, localSoloStorage, type SavedSolo, type SoloConfig, type SoloStorage } from "./local/storage";
+export { OnlineAdapter, OnlineActionError, mergeEvents, type ConnectionStatus, type OnlineAdapterOptions } from "./online/OnlineAdapter";

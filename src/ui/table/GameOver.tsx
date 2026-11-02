@@ -1,10 +1,18 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { PlayerView } from "@/engine";
 import { t } from "../i18n";
 import { Button } from "./Button";
 
-export function GameOver({ view, onNewGame }: { view: PlayerView; onNewGame: () => void }) {
+interface GameOverProps {
+  view: PlayerView;
+  /** Solo: "play again". Online passes its own actions (rematch, lobby, leave) instead. */
+  onNewGame?: () => void;
+  actions?: ReactNode;
+}
+
+export function GameOver({ view, onNewGame, actions }: GameOverProps) {
   if (!view.winner) return null;
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/70" data-testid="game-over">
@@ -26,10 +34,13 @@ export function GameOver({ view, onNewGame }: { view: PlayerView; onNewGame: () 
             );
           })}
         </ul>
-        <div className="mt-6">
-          <Button tone="primary" onClick={onNewGame} testId="btn-play-again">
-            {t("action.playAgain")}
-          </Button>
+        <div className="mt-6 flex flex-wrap items-center gap-2">
+          {actions ??
+            (onNewGame && (
+              <Button tone="primary" onClick={onNewGame} testId="btn-play-again">
+                {t("action.playAgain")}
+              </Button>
+            ))}
         </div>
       </div>
     </div>

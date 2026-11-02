@@ -41,9 +41,10 @@ export const roomsApi = {
   seat: (roomId: string, op: SeatOp) => call<{ ok: true }>(`/api/rooms/${roomId}/seat`, "POST", op),
   settings: (roomId: string, patch: SettingsPatch) => call<{ settings: RoomSettings }>(`/api/rooms/${roomId}/settings`, "PATCH", patch),
   start: (roomId: string) => call<{ gameId: string }>(`/api/rooms/${roomId}/start`, "POST"),
+  rematch: (roomId: string, mode: "rematch" | "lobby") => call<{ gameId: string | null }>(`/api/rooms/${roomId}/rematch`, "POST", { mode }),
 };
 
 export function roomErrorMessage(e: unknown): string {
-  const code = e instanceof RoomApiError ? e.code : "INTERNAL";
+  const code = e instanceof Error && "code" in e && typeof e.code === "string" ? e.code : "INTERNAL";
   return t(`rooms.error.${code}` as MessageKey);
 }

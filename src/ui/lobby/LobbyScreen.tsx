@@ -122,9 +122,12 @@ export function LobbyScreen() {
         <p className="w-full text-xs text-stone-400">{t("lobby.shareHint")}</p>
       </header>
 
-      {room.status === "in_game" ? (
+      {room.status !== "lobby" && room.currentGameId ? (
         <p className="text-sm text-amber-300" data-testid="lobby-in-game">
-          {t("lobby.inGame")}
+          {t("lobby.inGame")}{" "}
+          <Link href={`/play/online/${room.currentGameId}`} className="underline">
+            {t("lobby.toGame")}
+          </Link>
         </p>
       ) : null}
 

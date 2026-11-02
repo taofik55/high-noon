@@ -1,5 +1,6 @@
 import "server-only";
-import { currentActor, redactEvent, toPlayerView, type GameEvent, type GameState } from "@/engine";
+import { currentActor, redactEvent, toPlayerView, type GameEvent, type GameState, type Seat } from "@/engine";
+import type { OnlineView } from "@/lib/online/types";
 import type { Json } from "@/lib/supabase/types";
 
 // Builds what one engine step publishes (docs/03 §5.1 step 7): a view per human seat and the redacted event rows.
@@ -9,6 +10,8 @@ export interface SeatOwner {
   seat: number;
   /** null for NPC seats (and for humans whose account was deleted). */
   userId: string | null;
+  /** A bot is playing this human seat (docs/01 §5.2). */
+  afk?: boolean;
 }
 
 export interface ViewRow {
@@ -23,11 +26,21 @@ export interface EventRow {
   payload: Json;
 }
 
+export interface SeatUpdate {
+  seat: number;
+  timeouts: number;
+  afk_takeover: boolean;
+}
+
 // Engine values are plain JSON data (Golden rule 1); the generated Json type just cannot see that through interfaces.
 export const asJson = (value: object): NonNullable<Json> => value as NonNullable<Json>;
 
-export function buildViews(state: GameState, seats: readonly SeatOwner[]): ViewRow[] {
-  return seats.flatMap((s) => (s.userId ? [{ user_id: s.userId, seat: s.seat, view: asJson(toPlayerView(state, s.seat)) }] : []));
+export function buildViews(state: GameState, seats: readonly SeatOwner[], extra: { deadline: string | null; actor: Seat | null }): ViewRow[] {
+  return seats.flatMap((s) => {
+    if (!s.userId) return [];
+    const view: OnlineView = { ...toPlayerView(state, s.seat), deadline: extra.deadline, actor: extra.actor, afk: s.afk ?? false };
+    return [{ user_id: s.userId, seat: s.seat, view: asJson(view) }];
+  });
 }
 
 /**
@@ -50,11 +63,12 @@ export function buildEventRows(events: readonly GameEvent[], seats: readonly Sea
   return rows;
 }
 
-/** docs/03 §5.1 step 6: a deadline only when a human must act and the room uses a timer. */
+/** docs/03 §5.1 step 6: a deadline only when a present human must act and the room uses a timer. */
 export function promptDeadline(state: GameState, seats: readonly SeatOwner[], turnTimerSec: number, now: Date): string | null {
   if (turnTimerSec <= 0 || state.winner !== null) return null;
   const actor = currentActor(state);
-  if (actor === null || !seats.find((s) => s.seat === actor)?.userId) return null;
+  const owner = actor === null ? undefined : seats.find((s) => s.seat === actor);
+  if (!owner?.userId || owner.afk) return null;
   return new Date(now.getTime() + turnTimerSec * 1000).toISOString();
 }
 
@@ -74,22 +88,27 @@ export interface CommitArgs {
 export function commitArgs(input: {
   gameId: string;
   expectedVersion: number;
+  /** What games.state stores (the ServerGame wrapper); `state` below is its engine part. */
+  stored: object;
   state: GameState;
   events: readonly GameEvent[];
   seats: readonly SeatOwner[];
   turnTimerSec: number;
   now: Date;
+  actor: Seat | null;
+  seatUpdates?: readonly SeatUpdate[];
 }): CommitArgs {
   const { state, seats } = input;
+  const deadline = promptDeadline(state, seats, input.turnTimerSec, input.now);
   return {
     p_game_id: input.gameId,
     p_expected_version: input.expectedVersion,
-    p_state: asJson(state),
+    p_state: asJson(input.stored),
     p_status: state.winner === null ? "active" : "finished",
     p_winner: state.winner, // engine Winner values match the games.winner check constraint
-    p_prompt_deadline: promptDeadline(state, seats, input.turnTimerSec, input.now),
-    p_views: asJson(buildViews(state, seats)),
+    p_prompt_deadline: deadline,
+    p_views: asJson(buildViews(state, seats, { deadline, actor: input.actor })),
     p_events: asJson(buildEventRows(input.events, seats)),
-    p_seat_updates: [],
+    p_seat_updates: asJson([...(input.seatUpdates ?? [])]),
   };
 }

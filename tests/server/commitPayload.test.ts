@@ -22,7 +22,7 @@ const seats: SeatOwner[] = [
 describe("commit payload (docs/03 §5.1 step 7)", () => {
   it("builds one view per human, each for its own seat only", () => {
     const { state } = createGame(config, "seed-views");
-    const views = buildViews(state, seats);
+    const views = buildViews(state, seats, { deadline: null, actor: null });
     expect(views.map((v) => [v.user_id, v.seat])).toEqual([
       ["user-ann", 0],
       ["user-ben", 1],
@@ -88,7 +88,7 @@ describe("commit payload (docs/03 §5.1 step 7)", () => {
 
   it("produces RPC arguments with the expected version and status", () => {
     const { state, events } = createGame(config, "seed-args");
-    const args = commitArgs({ gameId: "g1", expectedVersion: 0, state, events, seats, turnTimerSec: 0, now: new Date() });
+    const args = commitArgs({ gameId: "g1", expectedVersion: 0, stored: { game: state }, state, events, seats, turnTimerSec: 0, now: new Date(), actor: null });
     expect(args).toMatchObject({ p_game_id: "g1", p_expected_version: 0, p_status: "active", p_winner: null, p_prompt_deadline: null });
     expect(JSON.stringify(args.p_views)).not.toContain('"rng"');
   });
@@ -96,7 +96,7 @@ describe("commit payload (docs/03 §5.1 step 7)", () => {
 
 describe("rate limit (docs/03 §6)", () => {
   it("allows a burst up to capacity, then refills over time", () => {
-    const limit = { capacity: 3, refillPerSec: 1 };
+    const limit = { name: "test", capacity: 3, refillPerSec: 1 };
     const key = `test-${Math.random()}`;
     expect([0, 0, 0, 0].map(() => takeToken(key, limit, 1000))).toEqual([true, true, true, false]);
     expect(takeToken(key, limit, 1500)).toBe(false);
