@@ -263,3 +263,9 @@ After each migration: `supabase gen types typescript --local > src/lib/supabase/
 `supabase start` (Docker), `supabase db reset` applies migrations + `supabase/seed.sql` (can be empty). Use local URL and
 keys in `.env.local`. Anonymous sign-in must also be enabled in `supabase/config.toml` (`[auth] enable_anonymous_sign_ins = true`,
 `[auth] enable_manual_linking = true`).
+
+Implemented (Phase 9): the CLI is a dev dependency (`pnpm db:start | db:stop | db:reset | db:types`). This project's local
+stack listens on **553xx** (API 55321, DB 55322, Studio 55323) so it can run next to other local Supabase projects on the
+default 543xx ports. Storage, edge runtime and analytics are disabled (unused). The local anonymous sign-in rate limit is
+raised for tests. Google is optional locally (`[auth.external.google]`, credentials in `supabase/.env`).
+`tests/db/rls.test.ts` (`pnpm test:db`) proves the policies with real anonymous users. Owner setup: docs/SETUP-SUPABASE.md.

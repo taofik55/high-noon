@@ -91,8 +91,10 @@ pnpm test           # vitest run
 pnpm test:watch
 pnpm sim -- --games 1000 --players 4-7 --difficulty mixed   # bot-vs-bot harness
 pnpm e2e            # playwright smoke
-supabase start | supabase db reset | supabase migration new <name>
-supabase gen types typescript --local > src/lib/supabase/types.ts
+pnpm db:start | pnpm db:stop | pnpm db:reset      # local Supabase (Docker), ports 553xx
+pnpm db:types       # supabase gen types typescript --local > src/lib/supabase/types.ts
+pnpm test:db        # RLS tests against the local stack (pnpm test does not need Docker)
+pnpm exec supabase migration new <name>
 ```
 
 ## Environment variables

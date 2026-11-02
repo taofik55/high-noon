@@ -17,6 +17,15 @@ cp .env.example .env.local   # fill in later (Supabase from Phase 9)
 pnpm dev                     # http://localhost:3000
 ```
 
+## Local database (online features, from Phase 9)
+
+Docker Desktop must be running. See [docs/SETUP-SUPABASE.md](docs/SETUP-SUPABASE.md).
+
+```bash
+pnpm db:start        # local Supabase on ports 553xx, applies supabase/migrations
+pnpm test:db         # row-level security tests
+```
+
 ## Checks
 
 ```bash

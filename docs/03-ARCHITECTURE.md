@@ -301,6 +301,12 @@ Lobby presence uses a Supabase Realtime **presence** channel `room:<code>`; slot
 - `SITE_PASSWORD` gate implemented in `src/proxy.ts` (Next.js 16 renamed `middleware.ts` to `proxy.ts`; cookie after
   correct password) — skip for `/api/*` health.
 - `robots.txt` disallow all + `<meta name="robots" content="noindex">`.
+- Implemented (Phase 9): `src/proxy.ts` refreshes the Supabase session on every request (`@supabase/ssr` getAll/setAll)
+  and, when `SITE_PASSWORD` is set, requires the `hn_gate` cookie (SHA-256 of the password, httpOnly, 30 days, set by
+  `POST /api/gate`); pages redirect to `/gate?next=…`, APIs answer 401. Exempt: `/gate`, `/api/gate`, `/api/health`,
+  `/auth/callback`, static files. OAuth (Google sign-in and anonymous → Google `linkIdentity`) returns to
+  `/auth/callback`, which exchanges the PKCE code for the session cookie. Clients: `lib/supabase/client.ts` (browser),
+  `lib/supabase/server.ts` (server, user's RLS), `server/supabaseAdmin.ts` (secret key, `server-only`).
 
 ## 7. Performance notes
 - 3D canvas mounted once per game; HUD in HTML/CSS layered over the canvas (cheaper and crisper than 3D text).
