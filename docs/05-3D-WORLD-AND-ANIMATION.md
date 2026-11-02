@@ -85,6 +85,25 @@ interface Sequence {
 - NPC "thinking": before presenting an NPC action, wait 400–1200 ms (scaled by speed) with a thinking pose.
 - A sequence must never be required for correctness; it reads `presentedView` and events only.
 
+**Implementation (Phase 8, `src/game3d/director/`):**
+- `planner.ts` (pure) splits an update's redacted events into steps, one per sequence, in priority order; only
+  bookkeeping events (`QUIET_EVENTS`) fall to `generic`. `sequences.ts` builds one GSAP timeline per step from the
+  context's rig / VFX / camera APIs; `Director.ts` plays them as the store's `Presenter` (docs/03 §4.2).
+- **Scenes are self-contained per update.** Every newly presented view resets all character rigs to their seat pose
+  (before paint), so a multi-update action (Duel) walks out and back inside one scene, and a held pose (death fall)
+  never stacks with the static pose of the next view (dead players lie down, with a gravestone).
+- Clip names are the shared Mixamo list (`types.ts ClipName`); placeholders implement them as procedural tweens
+  (`clips.ts`). Draw/Aim lean in until Shoot; Death_*, SitJail, CoverCrouch, Lasso hold until the reset.
+- Short cinematics skip camera moves and lead-in poses and show only the deciding draw! (Jourdonnais + Barrel can
+  make two). Unit tests check every step of hundreds of real updates against the budgets: full ≤ 6 s, short ≤ 2.5 s,
+  off ≤ 0.4 s per event.
+- Skip (button / Space) jumps the running timeline to its end (`progress(1)`) and presents everything queued
+  instantly until a human decision is due. With autoplay or many bot turns the queue can get long in "full": that is
+  expected, each action is staged in order.
+- Layout rule for the 3D page: the bottom band belongs to the hand fan; HTML panels (prompt, log) stay above it so
+  no card is ever under a panel. Hand cards keep a resting-size hit area, so the enlarged hovered card never swallows
+  a click meant for its neighbour.
+
 ### 6.1 Sequence catalogue
 | Events | Sequence (full) |
 |---|---|

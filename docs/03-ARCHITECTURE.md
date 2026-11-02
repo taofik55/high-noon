@@ -240,9 +240,11 @@ game over. `setAutoplay(true)` lets a medium bot play seat 0 (debugging, e2e).
 sequences, then sets `presentedView = update.view`. The HUD renders `presentedView`, so results are never spoiled
 before the animation. Input is enabled only when the queue is empty and `presentedView.legalActions` is non-empty.
 Skip / cinematics "off" = apply updates instantly (still in order).
-Until Phase 8 a stub in `src/ui/store/gameStore.ts` plays the Director's role: each update is presented after
-`STEP_DELAY` (+ `NPC_THINK_DELAY` when an NPC acted; 0 in "fast" mode). `canAct(store)` = queue empty, not sending,
-legal actions present.
+The store presents through a `Presenter` (`present(update, { prev, mySeat, instant, setThinking }) → Promise`,
+`skip()`): the 3D table installs the Director (docs/05 §6); without one (2D debug table, tests) a stub waits
+`STEP_DELAY` (+ `NPC_THINK_DELAY` for NPC actions; 0 in "fast" mode). `store.skip()` finishes the current scene and
+presents the rest of the queue instantly. A presenter error is logged and the update is shown anyway.
+`canAct(store)` = queue empty, not sending, legal actions present.
 
 ### 4.3 Client state stores (Zustand)
 - `gameStore`: adapter, queue, presentedView, selection state (selected card, hovered target), pending send.

@@ -15,6 +15,7 @@ import { registerSeatPicker } from "../seatPicker";
 import { registerTestProvider } from "../testHook";
 import { useUi3D } from "../uiStore";
 import { useTargetSeats } from "../useTargetSeats";
+import { VfxLayer } from "../vfx/VfxLayer";
 import { SEAT_TINTS, seatPosition, type Vec3 } from "../world/layout";
 import { Seat } from "../world/Seat";
 import { Town } from "../world/Town";
@@ -72,6 +73,7 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
   const quality = QUALITY_CONFIG[resolveQuality(setting, autoLevel)];
   const hoveredSeat = useUi3D((s) => s.hoveredSeat);
   const freeCamera = useUi3D((s) => s.freeCamera);
+  const cinematic = useUi3D((s) => s.cinematic);
   const targets = useTargetSeats(ti);
 
   const view = ti.view;
@@ -103,10 +105,12 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
           isTurn={view.turn.seat === p.seat}
           isActing={view.currentActor === p.seat}
           targetable={targets.has(p.seat)}
+          version={ti.version}
           onSelect={ti.onSeat}
         />
       ))}
-      <CameraRig focus={focusSeat} free={freeCamera} />
+      <CameraRig focus={focusSeat} free={freeCamera} cinematic={cinematic} />
+      <VfxLayer />
       <HandFan ti={ti} />
       <BadgeTracker positions={positions} />
       <SeatProjector positions={positions} targets={targets} />

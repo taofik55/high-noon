@@ -1,5 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { IllegalActionError, type Action, type PlayerView } from "@/engine";
+import { IllegalActionError, type Action, type PlayerView, type Seat } from "@/engine";
 import type { GameAdapter, GameUpdate } from "@/net";
 import { t } from "../i18n";
 import { formatEvent, type LogLine } from "../log/formatEvent";
@@ -8,6 +8,26 @@ export type Speed = "normal" | "fast";
 
 export interface LogEntry extends LogLine {
   id: number;
+}
+
+export interface PresentInfo {
+  /** The view the HUD shows while this update is staged (the result is not revealed before the scene ends). */
+  prev: PlayerView;
+  mySeat: Seat;
+  /** Skip / fast-forward: present without any animation. */
+  instant: boolean;
+  /** Shows "X is thinking…" on the HUD while the presenter holds an NPC's thinking pause. */
+  setThinking(seat: Seat | null): void;
+}
+
+/**
+ * Stages one update before the HUD shows its result (docs/03 §4.2, docs/05 §6). The 3D table installs the Director;
+ * without a presenter the store uses a short delay (2D debug table, tests). Must never be required for correctness.
+ */
+export interface Presenter {
+  present(update: GameUpdate, info: PresentInfo): Promise<void>;
+  /** Finish the current scene at once. */
+  skip(): void;
 }
 
 export interface GameStoreState {
@@ -19,6 +39,8 @@ export interface GameStoreState {
   presentedVersion: number;
   /** Seat whose NPC update is being "thought about" right now. */
   thinking: number | null;
+  /** True while an update is being presented. */
+  presenting: boolean;
   log: LogEntry[];
   sending: boolean;
   error: string | null;
@@ -29,10 +51,13 @@ export interface GameStoreState {
   enqueue(update: GameUpdate): void;
   send(action: Action): Promise<void>;
   setSpeed(speed: Speed): void;
+  setPresenter(presenter: Presenter | null): void;
+  /** Skip button / Space: finish the current scene and fast-forward everything queued (docs/05 §6). */
+  skip(): void;
   clearError(): void;
 }
 
-/** Director stub timings (ms). Phase 8 replaces this with real cinematic sequences. */
+/** Stub presenter timings (ms), used when no Director is installed. */
 export const STEP_DELAY = 250;
 export const NPC_THINK_DELAY = 450;
 
@@ -44,6 +69,11 @@ export function canAct(s: Pick<GameStoreState, "queue" | "presentedView" | "send
 export function createGameStore(): StoreApi<GameStoreState> {
   let unsubscribe: (() => void) | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let presenter: Presenter | null = null;
+  let running = false;
+  let skipping = false;
+  /** Bumped on attach/detach so a scene finishing after a reset is ignored. */
+  let generation = 0;
   let nextLogId = 0;
 
   const toLog = (update: GameUpdate): LogEntry[] =>
@@ -53,28 +83,62 @@ export function createGameStore(): StoreApi<GameStoreState> {
     });
 
   return createStore<GameStoreState>()((set, get) => {
-    /** Presents queued updates one at a time: the stand-in for the Director's sequence player. */
-    const pump = (): void => {
-      if (timer !== null) return;
-      const next = get().queue[0];
-      if (!next) return;
-      const mySeat = get().adapter?.mySeat;
-      const npc = next.actor !== null && next.actor !== mySeat;
-      const delay = get().speed === "fast" ? 0 : STEP_DELAY + (npc ? NPC_THINK_DELAY : 0);
-      set({ thinking: npc && delay > 0 ? next.actor : null });
+    const apply = (update: GameUpdate): void => {
+      set((s) => ({
+        queue: s.queue.slice(1),
+        presentedView: update.view,
+        presentedVersion: update.version,
+        thinking: null,
+        log: [...s.log, ...toLog(update)].slice(-400),
+      }));
+    };
+
+    /** The stand-in presenter: a short delay, longer for NPC actions, none in fast mode. */
+    const stubPresent = (update: GameUpdate, done: () => void): void => {
+      const npc = update.actor !== null && update.actor !== get().adapter?.mySeat;
+      const delay = get().speed === "fast" || skipping ? 0 : STEP_DELAY + (npc ? NPC_THINK_DELAY : 0);
+      set({ thinking: npc && delay > 0 ? update.actor : null });
       timer = setTimeout(() => {
         timer = null;
-        const [head, ...rest] = get().queue;
-        if (!head) return;
-        set((s) => ({
-          queue: rest,
-          presentedView: head.view,
-          presentedVersion: head.version,
-          thinking: null,
-          log: [...s.log, ...toLog(head)].slice(-400),
-        }));
-        pump();
+        done();
       }, delay);
+    };
+
+    /** Presents queued updates strictly one at a time, in order. */
+    const pump = (): void => {
+      if (running) return;
+      const next = get().queue[0];
+      const prev = get().presentedView;
+      const adapter = get().adapter;
+      if (!next || !prev || !adapter) {
+        skipping = false;
+        if (get().presenting) set({ presenting: false });
+        return;
+      }
+      running = true;
+      set({ presenting: true });
+      const gen = generation;
+      const finish = () => {
+        if (gen !== generation) return;
+        running = false;
+        apply(next);
+        if (get().queue.length === 0) {
+          skipping = false;
+          set({ presenting: false });
+        }
+        pump();
+      };
+      if (!presenter) {
+        stubPresent(next, finish);
+        return;
+      }
+      presenter
+        .present(next, { prev, mySeat: adapter.mySeat, instant: skipping, setThinking: (seat) => set({ thinking: seat }) })
+        .catch((e: unknown) => {
+          // A broken scene must never block the game (docs/05 §6): log it and show the result.
+          if (process.env.NODE_ENV !== "production") console.error("[director]", e);
+        })
+        .finally(finish);
     };
 
     return {
@@ -83,6 +147,7 @@ export function createGameStore(): StoreApi<GameStoreState> {
       presentedView: null,
       presentedVersion: 0,
       thinking: null,
+      presenting: false,
       log: [],
       sending: false,
       error: null,
@@ -90,6 +155,7 @@ export function createGameStore(): StoreApi<GameStoreState> {
 
       attach(adapter, initial) {
         get().detach();
+        generation++;
         set({
           adapter,
           queue: [],
@@ -99,17 +165,22 @@ export function createGameStore(): StoreApi<GameStoreState> {
           error: null,
           sending: false,
           thinking: null,
+          presenting: false,
         });
         unsubscribe = adapter.onUpdate((u) => get().enqueue(u));
       },
 
       detach() {
+        generation++;
         unsubscribe?.();
         unsubscribe = null;
         if (timer !== null) clearTimeout(timer);
         timer = null;
+        presenter?.skip();
+        running = false;
+        skipping = false;
         get().adapter?.dispose();
-        set({ adapter: null, queue: [], presentedView: null, presentedVersion: 0, log: [], thinking: null, sending: false });
+        set({ adapter: null, queue: [], presentedView: null, presentedVersion: 0, log: [], thinking: null, sending: false, presenting: false });
       },
 
       enqueue(update) {
@@ -132,6 +203,25 @@ export function createGameStore(): StoreApi<GameStoreState> {
 
       setSpeed(speed) {
         set({ speed });
+      },
+
+      setPresenter(p) {
+        presenter = p;
+      },
+
+      skip() {
+        if (!running && get().queue.length === 0) return;
+        skipping = true;
+        presenter?.skip();
+        if (timer !== null) {
+          // Stub presenter: fire the pending step now.
+          clearTimeout(timer);
+          timer = null;
+          running = false;
+          const next = get().queue[0];
+          if (next) apply(next);
+          pump();
+        }
       },
 
       clearError() {

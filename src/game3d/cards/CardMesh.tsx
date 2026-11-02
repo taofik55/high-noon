@@ -11,8 +11,27 @@ export const CARD_W = 0.63;
 export const CARD_H = 0.88;
 
 /** One geometry shared by every card (docs/05 §4). Box faces: +z = front, −z = back. */
-const geometry = new BoxGeometry(CARD_W, CARD_H, 0.008);
+export const CARD_GEOMETRY = new BoxGeometry(CARD_W, CARD_H, 0.008);
 const edge = new MeshStandardMaterial({ color: "#e9dcc0", roughness: 0.9 });
+
+/**
+ * Materials for one card: four shared edge faces, then front and back. Only the last two are per card; dispose them
+ * with disposeCardMaterials (textures are cached and shared).
+ */
+export function cardMaterials(cardId: CardId | null, opts: { unlit?: boolean; dimmed?: boolean } = {}): Material[] {
+  const front = cardId ? cardFaceTexture(cardId) : cardBackTexture();
+  const back = cardBackTexture();
+  const color = opts.dimmed ? "#777777" : "#ffffff";
+  const make = (map: typeof front) =>
+    opts.unlit
+      ? new MeshBasicMaterial({ map, color, transparent: true, alphaTest: 0.5 })
+      : new MeshStandardMaterial({ map, color, roughness: 0.75, transparent: true, alphaTest: 0.5 });
+  return [edge, edge, edge, edge, make(front), make(back)];
+}
+
+export function disposeCardMaterials(materials: Material[]): void {
+  materials.slice(4).forEach((m) => m.dispose());
+}
 
 type CardMeshProps = Omit<ThreeElements["mesh"], "geometry" | "material"> & {
   cardId: CardId | null; // null = face down
@@ -22,17 +41,7 @@ type CardMeshProps = Omit<ThreeElements["mesh"], "geometry" | "material"> & {
 };
 
 export function CardMesh({ cardId, unlit = false, dimmed = false, ...props }: CardMeshProps) {
-  const material = useMemo<Material[]>(() => {
-    const front = cardId ? cardFaceTexture(cardId) : cardBackTexture();
-    const back = cardBackTexture();
-    const color = dimmed ? "#777777" : "#ffffff";
-    const make = (map: typeof front) =>
-      unlit
-        ? new MeshBasicMaterial({ map, color, transparent: true, alphaTest: 0.5 })
-        : new MeshStandardMaterial({ map, color, roughness: 0.75, transparent: true, alphaTest: 0.5 });
-    return [edge, edge, edge, edge, make(front), make(back)];
-  }, [cardId, unlit, dimmed]);
-  // Textures are cached and shared; only the per-card materials are released.
-  useEffect(() => () => material.slice(4).forEach((m) => m.dispose()), [material]);
-  return <mesh geometry={geometry} material={material} {...props} />;
+  const material = useMemo(() => cardMaterials(cardId, { unlit, dimmed }), [cardId, unlit, dimmed]);
+  useEffect(() => () => disposeCardMaterials(material), [material]);
+  return <mesh geometry={CARD_GEOMETRY} material={material} {...props} />;
 }

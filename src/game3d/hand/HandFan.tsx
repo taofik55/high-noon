@@ -5,7 +5,7 @@ import { useThree, type ThreeEvent } from "@react-three/fiber";
 import { Hud, OrthographicCamera } from "@react-three/drei";
 import type { CardId } from "@/engine";
 import type { HandCardState, TableInteraction } from "@/ui/table/useTableInteraction";
-import { CardMesh, CARD_W } from "../cards/CardMesh";
+import { CARD_GEOMETRY, CardMesh, CARD_W } from "../cards/CardMesh";
 import { HAND_CARD_PX, fanLayout, type FanSlot } from "./fanLayout";
 import { seatAtPointer } from "../seatPicker";
 import { registerTestProvider } from "../testHook";
@@ -30,27 +30,40 @@ function HandCard({ cardId, slot, index, state, hidden, onPress, onDouble }: Han
   const lift = (hovered ? 34 : 0) + (state === "selected" ? 26 : 0);
   const scale = SCALE * (hovered ? 1.22 : state === "selected" ? 1.1 : 1);
   return (
-    <CardMesh
-      cardId={cardId}
-      unlit
-      dimmed={state === "dimmed"}
-      visible={!hidden}
-      position={[slot.x, slot.y + lift, hovered ? 50 : index]}
-      rotation={[0, 0, hovered ? 0 : slot.rotation]}
-      scale={[scale, scale, scale]}
-      onPointerOver={(e) => {
-        e.stopPropagation();
-        setHoveredCard(cardId);
-      }}
-      onPointerOut={() => {
-        if (useUi3D.getState().hoveredCard === cardId) setHoveredCard(null);
-      }}
-      onPointerDown={(e) => onPress(cardId, e)}
-      onDoubleClick={(e) => {
-        e.stopPropagation();
-        onDouble(cardId);
-      }}
-    />
+    <group>
+      {/* Hit area at the card's resting size and place: the lifted, enlarged hover card must not swallow clicks
+          meant for its neighbours in a big hand. Invisible but still raycast (colorWrite off). */}
+      <mesh
+        geometry={CARD_GEOMETRY}
+        position={[slot.x, slot.y, index]}
+        rotation={[0, 0, slot.rotation]}
+        scale={[SCALE, SCALE, SCALE]}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHoveredCard(cardId);
+        }}
+        onPointerOut={() => {
+          if (useUi3D.getState().hoveredCard === cardId) setHoveredCard(null);
+        }}
+        onPointerDown={(e) => onPress(cardId, e)}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onDouble(cardId);
+        }}
+      >
+        <meshBasicMaterial colorWrite={false} depthWrite={false} />
+      </mesh>
+      <CardMesh
+        cardId={cardId}
+        unlit
+        dimmed={state === "dimmed"}
+        visible={!hidden}
+        position={[slot.x, slot.y + lift, hovered ? 60 : index + 20]}
+        rotation={[0, 0, hovered ? 0 : slot.rotation]}
+        scale={[scale, scale, scale]}
+        raycast={() => null}
+      />
+    </group>
   );
 }
 
