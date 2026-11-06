@@ -2,40 +2,11 @@
 
 import { useEffect, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
-import { Group, Object3D } from "three";
-import { lathe, mat } from "../procedural/core/shapes";
-import { PartList } from "../procedural/core/parts";
+import type { Object3D } from "three";
 import { BONE } from "../procedural/character/skeleton";
 import type { BuiltCharacter } from "../procedural/character/cowboy";
-import { isMaterialKey, material } from "../procedural/materials";
-import { Mesh } from "three";
 import { animateHorse, buildHorse } from "../procedural/props/horse";
-import { buildBarrel, buildDynamite } from "../procedural/props/props";
-
-/** Iron cell bars around a jailed character (Jail, docs/05 §5): turned bars between two rings. */
-function buildCell(): Group {
-  const parts = new PartList({ skinned: false });
-  const bar = lathe([[0.025, 0], [0.025, 2.3], [0.032, 2.32], [0.032, 2.36], [0, 2.38]], 6);
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2;
-    parts.add(bar, { material: "steel", color: "#3a3a3a", matrix: mat([Math.cos(a) * 0.75, 0, Math.sin(a) * 0.75]) });
-  }
-  for (const y of [0.15, 2.2]) parts.add(lathe([[0.72, 0], [0.78, 0], [0.78, 0.06], [0.72, 0.06]], 28), { material: "steel", color: "#2e2e2e", matrix: mat([0, y, 0]) });
-  const g = new Group();
-  g.name = "status.jail";
-  for (const [key, geo] of parts.build()) if (isMaterialKey(key)) g.add(Object.assign(new Mesh(geo, material(key)), { castShadow: true }));
-  return g;
-}
-
-/** A spyglass hanging on the belt (Scope). */
-function buildSpyglass(): Group {
-  const parts = new PartList({ skinned: false });
-  parts.add(lathe([[0, 0], [0.018, 0], [0.018, 0.08], [0.015, 0.085], [0.015, 0.16], [0.013, 0.165], [0.013, 0.22], [0.016, 0.225], [0, 0.225]], 12), { material: "brass", color: "#c09a4e" });
-  const g = new Group();
-  g.name = "status.scope";
-  for (const [key, geo] of parts.build()) if (isMaterialKey(key)) g.add(Object.assign(new Mesh(geo, material(key)), { castShadow: true }));
-  return g;
-}
+import { buildBarrel, buildCell, buildDynamite, buildSpyglass } from "../procedural/props/props";
 
 interface SeatPropsProps {
   character: BuiltCharacter | null;

@@ -3,13 +3,16 @@
 import { CanvasTexture, SRGBColorSpace } from "three";
 import type { CardId } from "@/engine";
 import { GAME_TITLE } from "@/config/game";
+import { cardType, type CardType } from "@/engine";
+import { ART_H, ART_W, cardArt } from "./cardArt";
 import { cardFace, type CardFace } from "./cardFace";
 
-// Generated card textures (docs/05 §11): readable placeholders until the real card art arrives (Phase 12).
+// Card faces (docs/07 §2.5): corner index, title band, an engraved illustration of the card's scene (cardArt.ts),
+// then the rules; all drawn on a canvas, text by code so the art stays text-free.
 
-const W = 256;
-const H = 358; // 63×88 card ratio
-const RADIUS = 18;
+const W = 512;
+const H = 716; // 63×88 card ratio
+const RADIUS = 36;
 
 const cache = new Map<string, CanvasTexture>();
 
@@ -45,76 +48,116 @@ function makeTexture(draw: (ctx: CanvasRenderingContext2D) => void): CanvasTextu
   if (ctx) draw(ctx);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 8;
   return texture;
 }
 
-function drawFace(ctx: CanvasRenderingContext2D, face: CardFace): void {
+function drawFace(ctx: CanvasRenderingContext2D, face: CardFace, type: CardType): void {
   ctx.clearRect(0, 0, W, H);
-  roundedRect(ctx, 2, 2, W - 4, H - 4, RADIUS);
-  ctx.fillStyle = face.family === "blue" ? "#dfe8f2" : "#f1e2c2";
+  const ink = face.family === "blue" ? "#2f5d8a" : "#7a4a22";
+  roundedRect(ctx, 4, 4, W - 8, H - 8, RADIUS);
+  ctx.fillStyle = face.family === "blue" ? "#e2eaf2" : "#f1e2c2";
   ctx.fill();
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = face.family === "blue" ? "#2f5d8a" : "#7a4a22";
+  ctx.lineWidth = 12;
+  ctx.strokeStyle = ink;
   ctx.stroke();
-
-  // Title band
-  ctx.fillStyle = face.family === "blue" ? "#2f5d8a" : "#7a4a22";
-  ctx.fillRect(14, 56, W - 28, 52);
-  ctx.fillStyle = "#fff8ea";
-  ctx.font = "bold 30px Georgia, serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(face.title, W / 2, 83, W - 40);
 
   // Corner (rank + suit), top-left and bottom-right
   ctx.fillStyle = face.red ? "#b3261e" : "#1d1a17";
-  ctx.font = "bold 30px Georgia, serif";
+  ctx.font = "bold 52px Georgia, serif";
+  ctx.textBaseline = "middle";
   ctx.textAlign = "left";
-  ctx.fillText(face.corner, 18, 30);
+  ctx.fillText(face.corner, 34, 56);
   ctx.textAlign = "right";
-  ctx.fillText(face.corner, W - 18, H - 26);
+  ctx.fillText(face.corner, W - 34, H - 48);
+
+  // Title band
+  ctx.fillStyle = ink;
+  ctx.fillRect(26, 96, W - 52, 92);
+  ctx.fillStyle = "#fff8ea";
+  ctx.font = "bold 56px Georgia, serif";
+  ctx.textAlign = "center";
+  ctx.fillText(face.title, W / 2, 144, W - 80);
+
+  // Illustration panel with a thin frame (a plain panel if no art could be made).
+  const ax = (W - ART_W) / 2;
+  const ay = 206;
+  const art = cardArt(type);
+  if (art) ctx.drawImage(art, ax, ay, ART_W, ART_H);
+  else {
+    ctx.fillStyle = face.family === "blue" ? "#cdd9e6" : "#e4cfa6";
+    ctx.fillRect(ax, ay, ART_W, ART_H);
+  }
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = ink;
+  ctx.strokeRect(ax, ay, ART_W, ART_H);
 
   // Rules text
   ctx.fillStyle = "#2b241d";
-  ctx.font = "19px Georgia, serif";
+  ctx.font = "30px Georgia, serif";
   ctx.textAlign = "center";
-  const lines = wrap(ctx, face.rules, W - 44).slice(0, 7);
-  lines.forEach((l, i) => ctx.fillText(l, W / 2, 150 + i * 25));
+  const lines = wrap(ctx, face.rules, W - 80).slice(0, 5);
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, ay + ART_H + 44 + i * 36));
 }
 
 function drawBack(ctx: CanvasRenderingContext2D): void {
   ctx.clearRect(0, 0, W, H);
-  roundedRect(ctx, 2, 2, W - 4, H - 4, RADIUS);
+  roundedRect(ctx, 4, 4, W - 8, H - 8, RADIUS);
   ctx.fillStyle = "#5b1f16";
   ctx.fill();
+  ctx.lineWidth = 16;
+  ctx.strokeStyle = "#d9a441";
+  ctx.stroke();
+  roundedRect(ctx, 44, 44, W - 88, H - 88, 24);
+  ctx.lineWidth = 6;
+  ctx.stroke();
+  // Tooled-leather pattern: a lattice of thin diagonal lines inside the inner border.
+  ctx.save();
+  roundedRect(ctx, 50, 50, W - 100, H - 100, 20);
+  ctx.clip();
+  ctx.strokeStyle = "rgba(217,164,65,0.18)";
+  ctx.lineWidth = 2;
+  for (let i = -H; i < W + H; i += 28) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i + H, H);
+    ctx.moveTo(i, H);
+    ctx.lineTo(i + H, 0);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // Sheriff's star in a ring.
+  ctx.beginPath();
+  ctx.arc(W / 2, H / 2 - 40, 150, 0, Math.PI * 2);
   ctx.lineWidth = 8;
   ctx.strokeStyle = "#d9a441";
   ctx.stroke();
-  roundedRect(ctx, 22, 22, W - 44, H - 44, 12);
-  ctx.lineWidth = 3;
-  ctx.stroke();
-  // Five-pointed star
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 62 : 26;
+    const r = i % 2 === 0 ? 124 : 52;
     const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    ctx.lineTo(W / 2 + r * Math.cos(a), H / 2 - 20 + r * Math.sin(a));
+    ctx.lineTo(W / 2 + r * Math.cos(a), H / 2 - 40 + r * Math.sin(a));
   }
   ctx.closePath();
   ctx.fillStyle = "#d9a441";
   ctx.fill();
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+    ctx.beginPath();
+    ctx.arc(W / 2 + 124 * Math.cos(a), H / 2 - 40 + 124 * Math.sin(a), 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.fillStyle = "#f3d58c";
-  ctx.font = "bold 28px Georgia, serif";
+  ctx.font = "bold 56px Georgia, serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(GAME_TITLE.toUpperCase(), W / 2, H - 70, W - 50);
+  ctx.fillText(GAME_TITLE.toUpperCase(), W / 2, H - 120, W - 100);
 }
 
 export function cardFaceTexture(id: CardId): CanvasTexture {
   let texture = cache.get(id);
   if (!texture) {
-    texture = makeTexture((ctx) => drawFace(ctx, cardFace(id)));
+    texture = makeTexture((ctx) => drawFace(ctx, cardFace(id), cardType(id)));
     cache.set(id, texture);
   }
   return texture;
