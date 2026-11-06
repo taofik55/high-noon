@@ -20,7 +20,18 @@ interface SettingsState {
   speed: Speed;
   setCinematics(mode: CinematicMode): void;
   setSpeed(speed: Speed): void;
+  /** docs/05 §10: master / music / effects volume, 0–1 (defaults 0.8 / 0.5 / 0.8). */
+  volume: Volumes;
+  setVolume(channel: keyof Volumes, value: number): void;
 }
+
+export interface Volumes {
+  master: number;
+  music: number;
+  sfx: number;
+}
+
+export const DEFAULT_VOLUMES: Volumes = { master: 0.8, music: 0.5, sfx: 0.8 };
 
 /** localStorage that never throws (private mode, blocked storage): settings then just don't persist. */
 const safeStorage: StateStorage = {
@@ -47,7 +58,7 @@ const safeStorage: StateStorage = {
   },
 };
 
-/** docs/03 §4.3 settingsStore (graphics part; audio and cinematics join in later phases). */
+/** docs/03 §4.3 settingsStore: graphics, cinematics and audio. */
 export const useSettings = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -61,11 +72,18 @@ export const useSettings = create<SettingsState>()(
       speed: 1,
       setCinematics: (cinematics) => set({ cinematics }),
       setSpeed: (speed) => set({ speed }),
+      volume: DEFAULT_VOLUMES,
+      setVolume: (channel, value) => set({ volume: { ...get().volume, [channel]: Math.min(1, Math.max(0, value)) } }),
     }),
     {
       name: "highnoon.settings.v1",
       storage: createJSONStorage(() => safeStorage),
-      partialize: (s) => ({ quality: s.quality, cinematics: s.cinematics, speed: s.speed }),
+      partialize: (s) => ({ quality: s.quality, cinematics: s.cinematics, speed: s.speed, volume: s.volume }),
+      // Older saves have no volumes: keep the defaults for missing channels.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<SettingsState>;
+        return { ...current, ...p, volume: { ...DEFAULT_VOLUMES, ...p.volume } };
+      },
     },
   ),
 );

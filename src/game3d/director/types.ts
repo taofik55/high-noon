@@ -1,5 +1,6 @@
 import type gsap from "gsap";
 import type { CardId, PlayerView, Seat } from "@/engine";
+import type { SfxName } from "../audio/sfx";
 import type { CameraPose, Vec3 } from "../world/layout";
 
 export type Timeline = gsap.core.Timeline;
@@ -48,7 +49,10 @@ export interface RigApi {
 
 export type PropKind = "wagon" | "stagecoach" | "rider" | "tumbleweed" | "bottle";
 
-/** Short-lived visual effects; each returns a timeline that removes its objects when done. */
+/** Effects from src/game3d/audio/sfx.ts plus the music stingers (docs/05 §10). */
+export type SoundCue = SfxName | "duel" | "victory";
+
+/** Short-lived visual effects (and their sounds); each returns a timeline that removes its objects when done. */
 export interface VfxApi {
   muzzleFlash(at: Vec3): Timeline;
   tracer(from: Vec3, to: Vec3, color?: string): Timeline;
@@ -66,6 +70,8 @@ export interface VfxApi {
   prop(kind: PropKind, from: Vec3, to: Vec3, duration: number): Timeline;
   /** A line of text over the scene (turn banner, "WANTED", winners). */
   banner(text: string, duration: number, tone?: "info" | "danger" | "gold"): Timeline;
+  /** A sound at a world position (flat when `at` is omitted), or a music stinger. Zero-length timeline. */
+  sound(cue: SoundCue, at?: Vec3): Timeline;
 }
 
 export interface CameraApi {

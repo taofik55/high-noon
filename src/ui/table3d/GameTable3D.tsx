@@ -18,6 +18,7 @@ import { Button } from "../table/Button";
 import { GameLog } from "../table/GameLog";
 import { PromptPanel } from "../table/PromptPanel";
 import { useTableInteraction } from "../table/useTableInteraction";
+import { SoundMenu } from "./SoundMenu";
 
 // three.js must never render on the server.
 const GameCanvas = dynamic(() => import("@/game3d/scene/GameCanvas").then((m) => m.GameCanvas), {
@@ -146,6 +147,7 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
               ))}
             </select>
           </label>
+          <SoundMenu />
           <Button onClick={() => store.getState().skip()} disabled={!presenting} testId="btn-skip">
             {t("solo.skip")}
           </Button>

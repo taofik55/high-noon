@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { GAME_TITLE } from "@/config/game";
 import { t } from "@/ui/i18n";
 import { HomeScreen } from "@/ui/auth/HomeScreen";
@@ -10,6 +11,9 @@ export default function Home() {
         <p className="mt-2 text-lg text-amber-200">{t("home.tagline")}</p>
       </div>
       <HomeScreen />
+      <Link href="/credits" data-testid="link-credits" className="text-sm text-amber-300 underline">
+        {t("credits.title")}
+      </Link>
     </main>
   );
 }

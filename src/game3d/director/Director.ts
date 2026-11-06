@@ -32,6 +32,7 @@ const NULL_VFX: VfxApi = {
   reveal: NO_TIMELINE,
   prop: NO_TIMELINE,
   banner: NO_TIMELINE,
+  sound: NO_TIMELINE,
 };
 
 /**

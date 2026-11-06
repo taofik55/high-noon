@@ -79,6 +79,7 @@ function shootAt(ctx: DirectorContext, tl: Timeline, from: Seat, to: Seat, tail:
   const fire = tl.duration();
   if (shooter) tl.add(shooter.play(rifle ? "ShootRifle" : "Shoot"), fire);
   tl.add(ctx.vfx.muzzleFlash(ctx.chest(from)), fire);
+  tl.add(ctx.vfx.sound(rifle ? "rifle" : "gunshot", ctx.chest(from)), fire);
   tl.add(ctx.vfx.tracer(ctx.chest(from), ctx.chest(to)), fire + 0.02);
   // Short cinematics show only the deciding draw! (Jourdonnais + Barrel can make two; both are in the log).
   const checks = tail.filter((e) => e.t === "DRAW_CHECK");
@@ -89,6 +90,7 @@ function shootAt(ctx: DirectorContext, tl: Timeline, from: Seat, to: Seat, tail:
       const target = ctx.rig(to);
       if (target) tl.add(target.play("CoverCrouch"));
       tl.add(ctx.vfx.dust(add(ctx.seat(to), [0, 0.4, 0])), "<");
+      tl.add(ctx.vfx.sound("ricochet", ctx.seat(to)), "<");
     }
   }
 }
@@ -118,6 +120,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (check?.t !== "DRAW_CHECK") return tl;
     const seat = check.seat;
     if (full(ctx)) tl.add(ctx.camera.shot(closeUp(ctx, seat), 0.6));
+    tl.add(ctx.vfx.sound("fuse", ctx.chest(seat)), 0);
     tl.add(ctx.vfx.reveal(check.chosen, check.success ? false : true, !full(ctx)));
     const result = events[1];
     if (result?.t === "DYNAMITE_PASSED") {
@@ -126,6 +129,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
       tl.add(ctx.vfx.cardFlight(inPlayCard(ctx.view, seat, "dynamite"), ctx.crate(seat), ctx.crate(result.to), 0.7), "<0.15");
     } else if (result?.t === "DYNAMITE_EXPLODED") {
       tl.add(ctx.vfx.explosion(ctx.chest(seat)));
+      tl.add(ctx.vfx.sound("explosion", ctx.chest(seat)), "<");
       if (full(ctx)) tl.add(ctx.camera.shake(0.35, 0.6), "<");
       const rig = ctx.rig(seat);
       if (rig) tl.add(rig.play("HitReact"), "<");
@@ -145,6 +149,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
       if (rig) tl.add(rig.play("Cheer"));
     } else {
       if (rig) tl.add(rig.play("SitJail"));
+      tl.add(ctx.vfx.sound("clank", ctx.seat(check.seat)), "<");
       tl.add(ctx.vfx.banner(t("director.skipped", { name: nameOf(ctx.view, check.seat) }), 1.0), "<");
     }
     return tl;
@@ -171,6 +176,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (full(ctx)) {
       tl.add(ctx.camera.shot({ position: [home[0] * 1.6, 5, home[2] * 1.6 + 2], target: [0, 1, 0] }, 0.6));
       tl.add(ctx.vfx.prop("wagon", add(home, [-6, 0, 0]), add(home, [-1.5, 0, 0]), 1.0), 0);
+      tl.add(ctx.vfx.sound("gallop", home), 0);
     }
     tl.add(ctx.vfx.cardFlight(played.cardId, ctx.chest(from), DISCARD, 0.45), 0);
     const shot = events[1];
@@ -190,6 +196,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const tl = ctx.timeline();
     if (played?.t !== "CARD_PLAYED") return tl;
     tl.add(ctx.vfx.banner(t("director.indians"), full(ctx) ? 2.0 : 1.0, "danger"));
+    tl.add(ctx.vfx.sound("gallop", [0, 0, -10]), 0);
     if (full(ctx)) {
       tl.add(ctx.camera.shot({ position: [0, 9, 22], target: [0, 1, -10] }, 0.8), 0);
       // A dignified raid party crossing the square in a dust storm: neutral placeholder silhouettes (docs/05 §6.1).
@@ -205,6 +212,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const rig = ctx.rig(e.seat);
     if (rig) tl.add(rig.play("Shoot"));
     tl.add(ctx.vfx.muzzleFlash(ctx.chest(e.seat)), 0);
+    tl.add(ctx.vfx.sound("gunshot", ctx.chest(e.seat)), 0);
     tl.add(ctx.vfx.tracer(ctx.chest(e.seat), DESERT_EDGE), 0.02);
     return tl;
   },
@@ -213,6 +221,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const tl = ctx.timeline();
     if (e?.t !== "INDIANS_HIT") return tl;
     tl.add(ctx.vfx.tracer(DESERT_EDGE, ctx.chest(e.seat), "#7a5230"));
+    tl.add(ctx.vfx.sound("whoosh", ctx.chest(e.seat)), 0);
     const rig = ctx.rig(e.seat);
     if (rig) tl.add(rig.play("HitReact"));
     return tl;
@@ -225,6 +234,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const b = played.target.seat;
     tl.add(ctx.vfx.cardFlight(played.cardId, ctx.chest(a), DISCARD, 0.45), 0);
     tl.add(ctx.vfx.banner(t("director.duel", { a: nameOf(ctx.view, a), b: nameOf(ctx.view, b) }), full(ctx) ? 3.4 : 1.2, "gold"), 0);
+    tl.add(ctx.vfx.sound("duel"), 0);
     const ra = ctx.rig(a);
     const rb = ctx.rig(b);
     if (!full(ctx)) {
@@ -239,6 +249,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (ra) tl.add(ra.face(DUEL_B, 0.2));
     if (rb) tl.add(rb.face(DUEL_A, 0.2), "<");
     tl.add(ctx.vfx.prop("tumbleweed", [-9, 0.4, 11], [9, 0.4, 8.5], 1.4), "<");
+    tl.add(ctx.vfx.sound("wind", [0, 0.5, 10]), "<");
     tl.add(ctx.camera.shot({ position: [DUEL_A[0] - 1.2, 1.9, DUEL_A[2] + 1.6], target: add(DUEL_B, [0, 1.6, 0]) }, 0.5), "<0.6");
     if (ra) tl.add(ra.moveTo(ctx.seat(a), 0.9));
     if (rb) tl.add(rb.moveTo(ctx.seat(b), 0.9), "<");
@@ -256,6 +267,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
       // A quick draw that misses: spark in the dust next to the opponent.
       if (rig) tl.add(rig.play("Shoot"));
       tl.add(ctx.vfx.muzzleFlash(ctx.chest(round.seat)), 0);
+      tl.add(ctx.vfx.sound("gunshot", ctx.chest(round.seat)), 0);
       if (opponent !== null) tl.add(ctx.vfx.dust(add(ctx.seat(opponent), [0.8, 0.1, 0.5])), 0.05);
       tl.add(ctx.vfx.cardFlight(round.discarded, ctx.chest(round.seat), DISCARD, 0.4), 0);
       return tl;
@@ -265,6 +277,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
       const shooter = ctx.rig(shot.from);
       if (shooter) tl.add(shooter.play("Shoot"));
       tl.add(ctx.vfx.muzzleFlash(ctx.chest(shot.from)), 0);
+      tl.add(ctx.vfx.sound("gunshot", ctx.chest(shot.from)), 0);
       tl.add(ctx.vfx.tracer(ctx.chest(shot.from), ctx.chest(shot.to)), 0.02);
     }
     return tl;
@@ -279,6 +292,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const rig = ctx.rig(missed.seat);
     if (rig) tl.add(rig.play(missed.via === "barrel" || missed.via === "jourdonnais" ? "CoverCrouch" : "Dodge"), 0);
     tl.add(ctx.vfx.dust(add(ctx.seat(missed.seat), [0, 0.3, 0])), 0.15);
+    tl.add(ctx.vfx.sound("ricochet", ctx.seat(missed.seat)), 0.15);
     return tl;
   },
 
@@ -288,6 +302,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const rig = ctx.rig(e.seat);
     if (rig) tl.add(rig.play("HitReact"));
     tl.add(ctx.vfx.glow(ctx.seat(e.seat), "#d0342c"), 0);
+    tl.add(ctx.vfx.sound("thud", ctx.chest(e.seat)), 0);
     if (full(ctx) && e.seat === ctx.mySeat) tl.add(ctx.camera.shake(0.15, 0.3), 0);
     return tl;
   },
@@ -299,6 +314,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (full(ctx)) tl.add(ctx.vfx.prop("bottle", ctx.crate(played.seat), ctx.chest(played.seat), 0.4), 0);
     const rig = ctx.rig(played.seat);
     if (rig) tl.add(rig.play("Drink"), 0.2);
+    tl.add(ctx.vfx.sound("clink", ctx.chest(played.seat)), 0.2);
     tl.add(ctx.vfx.glow(ctx.seat(played.seat), "#4fd27a"), "<0.3");
     return tl;
   },
@@ -309,6 +325,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (played?.t !== "CARD_PLAYED") return tl;
     tl.add(ctx.vfx.cardFlight(played.cardId, ctx.chest(played.seat), DISCARD, 0.4), 0);
     tl.add(ctx.vfx.banner(t("director.saloon"), full(ctx) ? 2.0 : 1.0, "gold"), 0);
+    tl.add(ctx.vfx.sound("clink", building("building.saloon")), 0);
     if (full(ctx)) tl.add(ctx.camera.shot({ position: [-7, 4, -6], target: building("building.saloon") }, 0.8), 0);
     const cheer = tl.duration();
     for (const p of ctx.next.players) {
@@ -327,8 +344,13 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const seat = played.seat;
     tl.add(ctx.vfx.cardFlight(played.cardId, ctx.chest(seat), DISCARD, 0.4), 0);
     if (full(ctx)) {
-      if (cardType(played.cardId) === "stagecoach") tl.add(ctx.vfx.prop("stagecoach", [-26, 0, 6], [26, 0, 6], 1.8), 0);
-      else tl.add(ctx.vfx.glow(building("building.bank"), "#f2d16b"), 0);
+      if (cardType(played.cardId) === "stagecoach") {
+        tl.add(ctx.vfx.prop("stagecoach", [-26, 0, 6], [26, 0, 6], 1.8), 0);
+        tl.add(ctx.vfx.sound("gallop", [0, 0, 6]), 0);
+      } else {
+        tl.add(ctx.vfx.glow(building("building.bank"), "#f2d16b"), 0);
+        tl.add(ctx.vfx.sound("chime", building("building.bank")), 0);
+      }
     }
     const drawn = events.find((e) => e.t === "CARDS_DRAWN");
     if (drawn?.t === "CARDS_DRAWN") {
@@ -344,6 +366,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (played?.t !== "CARD_PLAYED") return tl;
     tl.add(ctx.vfx.cardFlight(played.cardId, ctx.chest(played.seat), DISCARD, 0.4), 0);
     tl.add(ctx.vfx.banner(t("director.store"), full(ctx) ? 1.6 : 0.8), 0);
+    tl.add(ctx.vfx.sound("bell", building("building.store")), 0);
     const revealed = events.find((e) => e.t === "STORE_REVEALED");
     if (revealed?.t === "STORE_REVEALED") flights(ctx, tl, revealed.cardIds, building("building.store"), CENTER_HIGH, 0.2);
     return tl;
@@ -383,6 +406,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
       tl.add(rig.face(ctx.seat(discarded.seat), 0.2), 0);
       tl.add(rig.play("Lasso"));
     }
+    tl.add(ctx.vfx.sound("whoosh", ctx.chest(played.seat)), "<");
     const from = played.target?.fromHand ? ctx.chest(discarded.seat) : ctx.crate(discarded.seat);
     flights(ctx, tl, discarded.cardIds, from, DISCARD, "<0.3");
     return tl;
@@ -408,6 +432,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     tl.add(ctx.vfx.cardFlight(played.cardId, ctx.chest(jailed.by), ctx.crate(jailed.seat), 0.6), 0);
     const rig = ctx.rig(jailed.seat);
     if (rig) tl.add(rig.play("SitJail"));
+    tl.add(ctx.vfx.sound("clank", ctx.seat(jailed.seat)), "<");
     return tl;
   },
 
@@ -418,6 +443,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     if (full(ctx)) tl.add(ctx.camera.shot(closeUp(ctx, e.seat), 0.6));
     const rig = ctx.rig(e.seat);
     if (rig) tl.add(rig.play(e.seat % 2 === 0 ? "Death_A" : "Death_B", { speed: full(ctx) ? 0.7 : 1.5 }));
+    tl.add(ctx.vfx.sound("bell", ctx.seat(e.seat)), "<");
     tl.add(ctx.vfx.banner(t("log.eliminated", { name: nameOf(ctx.view, e.seat), role: t(`role.${e.role}`) }), full(ctx) ? 1.8 : 1.0, "danger"), "<");
     const after = events[1];
     if (after?.t === "CARDS_INHERITED") {
@@ -448,6 +474,7 @@ const BUILDERS: Record<SequenceId, Builder> = {
     const tl = ctx.timeline();
     if (e?.t !== "GAME_OVER") return tl;
     tl.add(ctx.vfx.banner(t(`winner.${e.winner}`), full(ctx) ? 3.0 : 1.5, "gold"));
+    tl.add(ctx.vfx.sound("victory"), 0);
     if (full(ctx)) tl.add(ctx.camera.shot({ position: [0, 6, 18], target: [0, 1, 0] }, 1.2), 0);
     const winners = e.roles.flatMap((role, seat) =>
       (e.winner === "sheriff_team" && (role === "sheriff" || role === "deputy")) ||
@@ -535,6 +562,7 @@ function offBuild(ctx: DirectorContext, events: GameEvent[]): Timeline {
     if (e.t === "CARDS_DRAWN") tl.add(ctx.vfx.cardFlight(e.cardIds?.[0] ?? null, DECK, ctx.chest(e.seat), 0.25), 0);
     if (e.t === "CARD_DISCARDED") tl.add(ctx.vfx.cardFlight(e.cardIds[0] ?? null, ctx.chest(e.seat), DISCARD, 0.25), 0);
     if (e.t === "CARD_STOLEN") tl.add(ctx.vfx.cardFlight(e.cardId ?? null, ctx.chest(e.from), ctx.chest(e.to), 0.25), 0);
+    if (e.t === "GAME_OVER") tl.add(ctx.vfx.sound("victory"), 0);
   }
   return tl;
 }

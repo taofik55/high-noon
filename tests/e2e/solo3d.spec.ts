@@ -211,6 +211,26 @@ test.describe("/play/solo 3D table", () => {
     await expect(page.getByTestId("seat-badge-0")).toContainText("Tester");
   });
 
+  test("sound menu: volumes persist and the credits open", async ({ page }) => {
+    test.setTimeout(120_000);
+    const errors = watchErrors(page);
+    await startGame(page);
+    // The first click also unlocks Web Audio (music starts); headless Chromium has an audio backend.
+    await page.getByTestId("btn-sound").click();
+    await expect(page.getByTestId("sound-menu")).toBeVisible();
+    await expect(page.getByTestId("audio-master")).toHaveValue("80");
+    await expect(page.getByTestId("audio-music")).toHaveValue("50");
+    await page.getByTestId("audio-music").fill("20");
+    await page.getByTestId("btn-credits").click();
+    await expect(page.getByTestId("credits")).toBeVisible();
+    await page.getByTestId("btn-credits-close").click();
+    await page.reload();
+    await page.getByTestId("setup-resume").click();
+    await page.getByTestId("btn-sound").click();
+    await expect(page.getByTestId("audio-music")).toHaveValue("20");
+    expect(errors.filter((e) => !/THREE\.Clock|GL Driver|instant/.test(e))).toEqual([]);
+  });
+
   test("procedural table: real characters, weapons and town render without errors", async ({ page }) => {
     test.setTimeout(300_000);
     const errors = watchErrors(page);

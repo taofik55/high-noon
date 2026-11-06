@@ -16,6 +16,7 @@ import {
   type Object3D,
 } from "three";
 import type { CardId } from "@/engine";
+import { audio } from "../audio/engine";
 import { CARD_GEOMETRY, cardMaterials, disposeCardMaterials } from "../cards/CardMesh";
 import { registerVfx } from "../director/registry";
 import type { PropKind, Timeline, VfxApi } from "../director/types";
@@ -180,6 +181,7 @@ export function VfxLayer() {
           .to(m.position, { y: peak, duration: duration / 2, ease: "power2.out" }, 0)
           .to(m.position, { y: to[1], duration: duration / 2, ease: "power2.in" }, duration / 2)
           .to(m.rotation, { x: -Math.PI / 2, y: Math.PI * 2, duration, ease: "power1.inOut" }, 0);
+        tl.call(() => audio.sfx("card", from, { pitch: 0.9 + duration * 0.2 }), undefined, 0);
         tl.call(() => disposeCardMaterials(mats));
         return spawn(m, tl);
       },
@@ -207,7 +209,10 @@ export function VfxLayer() {
           undefined,
           0,
         );
+        tl.call(() => audio.sfx("card", undefined, { pitch: 0.8 }), undefined, 0);
         tl.to(m.scale, { x: 1, y: 1, z: 1, duration: 0.25, ease: "back.out(2)" });
+        if (success === true) tl.call(() => audio.sfx("chime"));
+        if (success === false) tl.call(() => audio.sfx("thud", undefined, { pitch: 0.7 }));
         if (success !== null) tl.to(flash.material, { opacity: 0.35, duration: 0.15, yoyo: true, repeat: 1 });
         tl.to({}, { duration: quick ? 0.05 : 0.35 }).to(m.scale, { x: 0.01, y: 0.01, z: 0.01, duration: 0.2 });
         tl.call(() => disposeCardMaterials(mats));
@@ -235,6 +240,12 @@ export function VfxLayer() {
         tl.call(() => {
           if (useUi3D.getState().banner?.text === text) useUi3D.getState().setBanner(null);
         });
+        return tl;
+      },
+
+      sound(cue, at) {
+        const tl = gsap.timeline();
+        tl.call(() => (cue === "duel" || cue === "victory" ? audio.stinger(cue) : audio.sfx(cue, at)), undefined, 0);
         return tl;
       },
     };

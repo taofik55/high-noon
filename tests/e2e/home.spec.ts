@@ -12,3 +12,10 @@ test("robots.txt disallows all crawlers", async ({ request }) => {
   expect(res.ok()).toBe(true);
   expect(await res.text()).toMatch(/Disallow: \/\s*$/m);
 });
+
+test("credits are reachable from the home page", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("link-credits").click();
+  await expect(page).toHaveURL(/\/credits$/);
+  await expect(page.getByTestId("credits")).toContainText("Bang!");
+});

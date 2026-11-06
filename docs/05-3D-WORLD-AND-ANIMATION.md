@@ -177,6 +177,22 @@ Mobile forces `low` and uses tap-to-select instead of drag.
   jail door, bottle clink, card swish/flip, bell toll, wind.
 - 3D positional audio for world sounds, 2D for UI. Respect volume settings; start audio only after first user gesture.
 
+**As built (Phase 12), all synthesised with the Web Audio API, no audio files** (`src/game3d/audio/`):
+- `engine.ts`: one `AudioContext` created on the first click/key press, master → music/SFX gain buses (sliders are
+  squared for a perceptual curve). World sounds go through an equal-power `PannerNode` at their position;
+  `AudioLayer` (inside the Canvas) moves the listener with the camera each frame without allocating.
+- `sfx.ts`: gunshot, rifle, ricochet, explosion, fuse, card swish, clink, bell, chime, gallop, whoosh (arrows,
+  lasso), jail clank, thud (hit), wind. Small random detune per play.
+- `music.ts`: a lookahead-scheduled fingerpicked loop (Am–G–F–E, 84 bpm) while the table is open, a horn stinger on
+  Duel and a fanfare on game over.
+- Sequences cue sounds through `VfxApi.sound(cue, at?)` (a zero-length timeline), so sounds follow the cinematic
+  timing and speed; card flights and draw! reveals sound on their own. With cinematics off, card swishes and the
+  game-over fanfare still play.
+- Settings: master / music / effects in `settingsStore.volume` (defaults 80/50/80, persisted), in the table's
+  "Suara" menu, next to the credits.
+- Deliberately left out: the war cry (a caricature we do not want) and the saloon piano (Saloon uses the clink and
+  the town loop).
+
 ## 11. Placeholders (build these first, Phase 7–8)
 - Characters: capsule body + sphere head + cone hat, tinted per seat, with simple procedural "animations"
   (tween transforms: recoil, dodge sidestep, fall over). Weapon = box.

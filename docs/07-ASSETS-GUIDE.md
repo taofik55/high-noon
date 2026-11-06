@@ -60,11 +60,17 @@ stagecoach stop, wooden sidewalks, hitching posts, crates, hay bales, cacti, roc
 ground textures (sand, dirt road), HDRI sky (late afternoon / sunset).
 
 ### 2.5 Cards — `public/assets/cards/`
+> **As built (Phase 12):** card art is procedural too. `src/game3d/cards/cardArt.ts` renders one scene per card type
+> offscreen from the procedural characters, weapons and props and finishes it as a sepia engraving; `cardTexture.ts`
+> draws the frame, title, index and rules. Review them at `/dev/cards`. Role cards and portraits remain future work.
+
 - 22 card-type illustrations (one per type; copies share art), 1 card back, 4 role cards, 16 character portraits.
 - Format: 768×1072 WebP (or KTX2), text rendered by code on top (name, rules icon, suit/rank) so art stays text-free.
 - Keep a consistent style prompt if using AI images, e.g. "vintage western engraving, sepia ink, warm parchment".
 
 ### 2.6 Audio — `public/assets/audio/`
+> **As built (Phase 12):** no audio files; every effect and the music are synthesised at runtime (docs/05 §10).
+
 See docs/05 §10. OGG/MP3, normalized to −16 LUFS (music) / −12 LUFS (SFX peaks).
 
 ## 3. Pipeline

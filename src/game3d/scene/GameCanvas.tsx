@@ -5,6 +5,7 @@ import { Canvas, useThree } from "@react-three/fiber";
 import { PerformanceMonitor } from "@react-three/drei";
 import { Vector3 } from "three";
 import type { TableInteraction } from "@/ui/table/useTableInteraction";
+import { AudioLayer } from "../audio/AudioLayer";
 import { CameraRig } from "../camera/CameraRig";
 import { CenterPile } from "../cards/CenterPile";
 import { HandFan } from "../hand/HandFan";
@@ -116,6 +117,7 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
       ))}
       <CameraRig focus={focusSeat} free={freeCamera} cinematic={cinematic} />
       <VfxLayer />
+      <AudioLayer />
       <HandFan ti={ti} />
       <BadgeTracker positions={positions} />
       <SeatProjector positions={positions} targets={targets} />

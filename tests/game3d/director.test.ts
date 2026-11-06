@@ -21,6 +21,7 @@ const fakeVfx: VfxApi = {
   reveal: (_c, _s, quick) => wait(quick ? 0.75 : 1.05),
   prop: (_k, _f, _t, d) => wait(d),
   banner: (_t, d) => wait(d),
+  sound: () => gsap.timeline(),
 };
 const fakeCamera: CameraApi = { shot: (_p, d) => wait(d), shake: (_s, d) => wait(d) };
 
