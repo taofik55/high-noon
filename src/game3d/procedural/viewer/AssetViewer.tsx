@@ -12,6 +12,20 @@ import type { CharacterId } from "@/engine";
 import { BONE_NAMES } from "../character/skeleton";
 import { buildColt45 } from "../weapons/colt45";
 import { buildWeapon, WEAPON_IDS } from "../weapons";
+import { animateHorse, buildHorse, type BuiltHorse } from "../props/horse";
+import {
+  buildBarrel,
+  buildBottle,
+  buildCactus,
+  buildCrate,
+  buildDynamite,
+  buildGatlingWagon,
+  buildGrave,
+  buildRock,
+  buildShackles,
+  buildStagecoach,
+  buildTumbleweed,
+} from "../props/props";
 import { buildSaloon } from "../buildings/saloon";
 import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "../buildings/town";
 import { StudioEnvironment } from "../StudioEnvironment";
@@ -56,6 +70,7 @@ interface ViewerProps {
 /** Built asset plus everything the viewer needs to pose and measure it. */
 interface Loaded {
   object: Object3D;
+  horse?: BuiltHorse;
   character: BuiltCharacter | null;
   gun: Object3D | null;
   triangles: number;
@@ -78,6 +93,33 @@ function load(asset: AssetId, who: CharacterId | "master"): Loaded {
       group.add(c.group);
       triangles += c.triangles;
     });
+    return { object: group, character: null, gun: null, triangles };
+  }
+  if (asset === "horse") {
+    const horse = buildHorse({ saddle: true });
+    return { object: horse.group, horse, character: null, gun: null, triangles: horse.triangles };
+  }
+  if (asset === "props") {
+    // Scene and seat props in a row (the wagon and the stagecoach behind).
+    const group = new Group();
+    let triangles = 0;
+    const place = (p: { group: Object3D; triangles: number }, x: number, z = 0, s = 1) => {
+      p.group.position.set(x, 0, z);
+      p.group.scale.setScalar(s);
+      group.add(p.group);
+      triangles += p.triangles;
+    };
+    place(buildCrate(), -3.2);
+    place(buildBarrel(), -2.1);
+    place(buildGrave(), -1.2);
+    place(buildDynamite(true), -0.45, 0, 3);
+    place(buildBottle(), 0.05, 0, 3);
+    place(buildShackles(), 0.75, 0, 3);
+    place(buildTumbleweed(), 1.6);
+    place(buildCactus(), 2.6);
+    place(buildRock(), 3.6);
+    place(buildGatlingWagon(), -2.2, -3.5);
+    place(buildStagecoach(), 2.0, -4.5);
     return { object: group, character: null, gun: null, triangles };
   }
   if (asset === "weapons") {
@@ -136,6 +178,7 @@ function collectStats(root: Object3D, triangles: number, gunTris: number): Omit<
 function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, autoRotate, onStats, onClips }: ViewerProps) {
   const loaded = useMemo(() => load(asset, character), [asset, character]);
   const clips = useMemo(() => (loaded.character ? buildClips() : []), [loaded]);
+  const gaits = useMemo(() => (loaded.horse ? ["idle", "walk", "gallop"] : null), [loaded]);
   const mixer = useMemo(() => (loaded.character ? new AnimationMixer(loaded.character.group) : null), [loaded]);
   const action = useRef<AnimationAction | null>(null);
   const gl = useThree((s) => s.gl);
@@ -144,7 +187,7 @@ function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, au
   const controls = useRef<{ target: Vector3; update: () => void } | null>(null);
   const gunTris = useMemo(() => (loaded.gun ? buildColt45().triangles : 0), [loaded]);
 
-  useEffect(() => onClips(clips.map((c) => c.name)), [clips, onClips]);
+  useEffect(() => onClips(gaits ?? clips.map((c) => c.name)), [clips, gaits, onClips]);
 
   // Frame the asset from a preset direction; "close" looks at the head (character) or the detail-rich front.
   useEffect(() => {
@@ -227,7 +270,13 @@ function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, au
     return () => window.clearInterval(id);
   }, [loaded, gunTris, gl, onStats]);
 
-  useFrame((_, dt) => mixer?.update(dt));
+  useFrame((state, dt) => {
+    mixer?.update(dt);
+    if (loaded.horse && playing) {
+      const gait = clip === "walk" || clip === "gallop" ? clip : "idle";
+      animateHorse(loaded.horse, state.clock.elapsedTime, gait);
+    }
+  });
 
   return (
     <>

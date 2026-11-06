@@ -56,6 +56,16 @@ export function AssetsPage() {
           ))}
         </div>
 
+        {asset === "horse" && (
+          <label className="flex items-center justify-between gap-2">
+            Langkah
+            <select data-testid="gait" className="rounded bg-stone-800 px-1 py-0.5" value={clip} onChange={(e) => setClip(e.target.value)}>
+              {clips.map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+        )}
         {asset === "cowboy" && (
           <div className="flex flex-col gap-2">
             <label className="flex items-center justify-between gap-2">

@@ -8,6 +8,8 @@ import { DEFAULT_SPEC } from "@/game3d/procedural/character/spec";
 import { sweep } from "@/game3d/procedural/core/sweep";
 import { buildColt45 } from "@/game3d/procedural/weapons/colt45";
 import { buildWeapon, WEAPON_IDS } from "@/game3d/procedural/weapons";
+import { animateHorse, buildHorse } from "@/game3d/procedural/props/horse";
+import * as props from "@/game3d/procedural/props/props";
 import { buildSaloon } from "@/game3d/procedural/buildings/saloon";
 import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "@/game3d/procedural/buildings/town";
 
@@ -153,5 +155,39 @@ describe("weapons", () => {
     expect(triangles).toBeGreaterThan(800);
     expect(triangles).toBeLessThan(10_000);
     for (const m of group.children) expect(finite((m as Mesh).geometry)).toBe(true);
+  });
+});
+
+describe("props and the horse", () => {
+  it("the horse is light, posable and stands on the ground", () => {
+    const h = buildHorse({ saddle: true });
+    console.log(`[budget] horse ${h.triangles} tris`);
+    expect(h.triangles).toBeLessThan(15_000);
+    expect(h.legs).toHaveLength(4);
+    animateHorse(h, 1.3, "gallop");
+    expect(h.legs.some((l) => Math.abs(l.rotation.x) > 0.05)).toBe(true);
+  });
+
+  it.each([
+    ["wagon", props.buildGatlingWagon],
+    ["stagecoach", props.buildStagecoach],
+    ["tumbleweed", () => props.buildTumbleweed()],
+    ["bottle", props.buildBottle],
+    ["dynamite", () => props.buildDynamite(true)],
+    ["shackles", props.buildShackles],
+    ["grave", props.buildGrave],
+    ["crate", () => props.buildCrate()],
+    ["cactus", () => props.buildCactus()],
+    ["rock", () => props.buildRock()],
+    ["barrel", props.buildBarrel],
+  ] as const)("%s is valid", (name, build) => {
+    const { group, triangles } = build();
+    console.log(`[budget] ${name} ${triangles} tris`);
+    expect(triangles).toBeGreaterThan(20);
+    expect(triangles).toBeLessThan(40_000);
+    group.traverse((o) => {
+      const g = (o as Mesh).geometry;
+      if (g) expect(finite(g)).toBe(true);
+    });
   });
 });
