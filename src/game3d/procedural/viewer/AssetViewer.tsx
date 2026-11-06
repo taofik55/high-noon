@@ -11,6 +11,7 @@ import { DEFAULT_SPEC } from "../character/spec";
 import type { CharacterId } from "@/engine";
 import { BONE_NAMES } from "../character/skeleton";
 import { buildColt45 } from "../weapons/colt45";
+import { buildWeapon, WEAPON_IDS } from "../weapons";
 import { buildSaloon } from "../buildings/saloon";
 import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "../buildings/town";
 import { StudioEnvironment } from "../StudioEnvironment";
@@ -79,6 +80,20 @@ function load(asset: AssetId, who: CharacterId | "master"): Loaded {
     });
     return { object: group, character: null, gun: null, triangles };
   }
+  if (asset === "weapons") {
+    // The six weapon cards, one above the other, shown at 3× scale.
+    const group = new Group();
+    let triangles = 0;
+    WEAPON_IDS.forEach((id, i) => {
+      const w = buildWeapon(id);
+      w.group.position.set(0, 0.4 + (WEAPON_IDS.length - 1 - i) * 0.32, 0);
+      w.group.rotation.y = -Math.PI / 2;
+      group.add(w.group);
+      triangles += w.triangles;
+    });
+    group.scale.setScalar(3);
+    return { object: group, character: null, gun: null, triangles };
+  }
   if (asset === "colt45") {
     const { group, triangles } = buildColt45();
     group.scale.setScalar(4);
@@ -140,8 +155,8 @@ function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, au
     let dist = Math.max(size.x, size.y, size.z) * 1.7 + 0.3;
     if (view === "close") {
       if (loaded.character) centre = new Vector3(0, 1.68, 0);
-      else if (asset !== "colt45" && asset !== "lineup") centre = new Vector3(0, size.y * 0.45, box.max.z - 1);
-      dist = loaded.character ? 0.75 : asset === "colt45" ? dist * 0.6 : Math.max(size.x, size.y) * 0.9;
+      else if (asset !== "colt45" && asset !== "lineup" && asset !== "weapons") centre = new Vector3(0, size.y * 0.45, box.max.z - 1);
+      dist = loaded.character ? 0.75 : asset === "colt45" || asset === "weapons" ? dist * 0.6 : Math.max(size.x, size.y) * 0.9;
     }
     const dir = {
       threeQuarter: new Vector3(0.55, 0.25, 0.85),

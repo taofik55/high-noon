@@ -19,12 +19,35 @@ const BRASS = "#b48a48";
 const GRIP = [-0.036, -0.045] as const;
 const profile = (x = 0, y = 0, side = 0, rotZ = 0) => mat([side, y - GRIP[1], x - GRIP[0]], [0, -Math.PI / 2, 0]).multiply(mat([0, 0, 0], [0, 0, rotZ]));
 
-const geometryCache: { value: Map<string, BufferGeometry> | null } = { value: null };
+/** Variations on the Single Action frame: barrel length, finish, and the details that tell the models apart. */
+export interface RevolverOptions {
+  /** Barrel length in metres (5½" Colt ≈ 0.142). */
+  barrel: number;
+  steel: string;
+  frame: string;
+  grip: string;
+  guard: string;
+  guardKey?: "brass" | "steel";
+  /** Remington: solid web under the barrel. */
+  web?: boolean;
+  /** Schofield: top-break latch in front of the hammer and a rib on the barrel. */
+  topBreak?: boolean;
+  /** No grip (the carabine fits a shoulder stock instead). */
+  gripless?: boolean;
+}
 
-function buildParts(): Map<string, BufferGeometry> {
-  const parts = new PartList({ skinned: false });
+export const COLT_OPTIONS: RevolverOptions = { barrel: 0.142, steel: BLUED, frame: CASE, grip: WOOD, guard: BRASS, guardKey: "brass" };
+
+/** Adds a revolver to a part list. `base` places the gun (its own frame: muzzle +Z, origin at the grip). */
+export function addRevolver(parts: PartList, opts: RevolverOptions, base = mat()): void {
+  const BLUED = opts.steel;
+  const CASE = opts.frame;
+  const WOOD = opts.grip;
+  const L = opts.barrel;
+  const E = Math.min(0.08, L * 0.56);
   const P = (g: BufferGeometry, mat: string, color: string, x = 0, y = 0, side = 0, colorAt?: Parameters<PartList["add"]>[1]["colorAt"]) =>
-    parts.add(g, { material: mat, color, matrix: profile(x, y, side), colorAt });
+    parts.add(g, { material: mat, color, matrix: base.clone().multiply(profile(x, y, side)), colorAt });
+  const M = (matrix: ReturnType<typeof mat>) => base.clone().multiply(matrix);
 
   // Frame with the cylinder window; case-hardened mottling painted per vertex.
   const frame = polygon([
@@ -76,12 +99,12 @@ function buildParts(): Map<string, BufferGeometry> {
     cyl.holes.push(hole);
   }
   const cylinder = extrude(cyl, 0.04, { size: 0.0012, thickness: 0.0012 }, 6);
-  parts.add(cylinder, { material: "steel", color: BLUED, matrix: mat([0, 0.0235 - GRIP[1], 0.031 - GRIP[0]]) });
+  parts.add(cylinder, { material: "steel", color: BLUED, matrix: M(mat([0, 0.0235 - GRIP[1], 0.031 - GRIP[0]])) });
   // Cartridge rims showing at the back of the cylinder.
   for (let c = 0; c < 6; c++) {
     const a = (c / 6) * Math.PI * 2 + Math.PI / 2;
     const rim = lathe([[0, 0], [0.0042, 0], [0.0043, 0.0012], [0, 0.0012]], 8);
-    parts.add(rim, { material: "brass", color: BRASS, matrix: mat([Math.cos(a) * 0.0108, 0.0235 - GRIP[1] + Math.sin(a) * 0.0108, 0.0105 - GRIP[0]], [Math.PI / 2, 0, 0]) });
+    parts.add(rim, { material: "brass", color: BRASS, matrix: M(mat([Math.cos(a) * 0.0108, 0.0235 - GRIP[1] + Math.sin(a) * 0.0108, 0.0105 - GRIP[0]], [Math.PI / 2, 0, 0])) });
   }
 
   // Barrel: lathed with a stepped shank, a crowned muzzle and a short visible bore.
@@ -91,22 +114,22 @@ function buildParts(): Map<string, BufferGeometry> {
       [0.0098, 0.0],
       [0.0098, 0.009],
       [0.0082, 0.012],
-      [0.0078, 0.138],
-      [0.0072, 0.142],
-      [0.0042, 0.1425],
-      [0.0036, 0.13],
+      [0.0078, L - 0.004],
+      [0.0072, L],
+      [0.0042, L + 0.0005],
+      [0.0036, L - 0.012],
     ],
     20,
   );
-  parts.add(barrel, { material: "steel", color: BLUED, matrix: mat([0, 0.035 - GRIP[1], 0.064 - GRIP[0]], [Math.PI / 2, 0, 0]) });
+  parts.add(barrel, { material: "steel", color: BLUED, matrix: M(mat([0, 0.035 - GRIP[1], 0.064 - GRIP[0]], [Math.PI / 2, 0, 0])) });
   // Front sight blade.
-  P(extrude(polygon([[0, 0], [0.012, 0], [0.01, 0.006], [0.004, 0.006]]), 0.0025), "steel", BLUED, 0.19, 0.0425);
+  P(extrude(polygon([[0, 0], [0.012, 0], [0.01, 0.006], [0.004, 0.006]]), 0.0025), "steel", BLUED, 0.064 + L - 0.018, 0.0425);
   // Ejector rod housing under the barrel, with its lug and the rod's crescent head.
-  const housing = lathe([[0, 0], [0.0047, 0], [0.0047, 0.075], [0.004, 0.08], [0, 0.08]], 12);
-  parts.add(housing, { material: "steel", color: BLUED, matrix: mat([0.0055, 0.0225 - GRIP[1], 0.066 - GRIP[0]], [Math.PI / 2, 0, 0]) });
-  P(extrude(polygon([[0, 0], [0.012, 0.004], [0.012, 0.011], [0, 0.011]]), 0.007, { size: 0.0008 }), "steel", BLUED, 0.128, 0.022, 0.003);
+  const housing = lathe([[0, 0], [0.0047, 0], [0.0047, E - 0.005], [0.004, E], [0, E]], 12);
+  parts.add(housing, { material: "steel", color: BLUED, matrix: M(mat([0.0055, 0.0225 - GRIP[1], 0.066 - GRIP[0]], [Math.PI / 2, 0, 0])) });
+  P(extrude(polygon([[0, 0], [0.012, 0.004], [0.012, 0.011], [0, 0.011]]), 0.007, { size: 0.0008 }), "steel", BLUED, 0.066 + E * 0.78, 0.022, 0.003);
   const head = lathe([[0, 0], [0.0045, 0], [0.005, 0.003], [0.003, 0.006], [0, 0.006]], 10);
-  parts.add(head, { material: "steel", color: BLUED, matrix: mat([0.0055, 0.0225 - GRIP[1], 0.145 - GRIP[0]], [Math.PI / 2, 0, 0]) });
+  parts.add(head, { material: "steel", color: BLUED, matrix: M(mat([0.0055, 0.0225 - GRIP[1], 0.065 + E - GRIP[0]], [Math.PI / 2, 0, 0])) });
   // Base pin screw and loading gate on the right side.
   P(lathe([[0, 0], [0.0035, 0], [0.0035, 0.002], [0, 0.003]], 10), "steel", BLUED, 0.062, 0.019, 0.011);
   P(extrude(polygon([[0, 0], [0.012, 0], [0.012, 0.016], [0.002, 0.018]]), 0.003, { size: 0.0006 }), "steel", CASE, -0.002, 0.012, -0.0125);
@@ -132,7 +155,17 @@ function buildParts(): Map<string, BufferGeometry> {
   guard.quadraticCurveTo(-0.014, -0.024, 0.0, -0.025);
   guard.quadraticCurveTo(0.016, -0.024, 0.01, -0.004);
   guard.closePath();
-  P(extrude(guard, 0.006, { size: 0.0012 }), "brass", BRASS);
+  P(extrude(guard, 0.006, { size: 0.0012 }), opts.guardKey ?? "brass", opts.guard);
+  if (opts.web) {
+    // Remington: a solid web from the frame to the end of the ejector housing.
+    P(extrude(polygon([[0.064, 0.031], [0.064 + E * 0.95, 0.03], [0.064 + E * 0.95, 0.024], [0.064, 0.011]]), 0.007, { size: 0.0008 }), "steel", BLUED);
+  }
+  if (opts.topBreak) {
+    // Schofield: barrel latch stirrup in front of the hammer, a sighting rib, and the hinge at the front.
+    P(extrude(polygon([[-0.006, 0.047], [0.014, 0.047], [0.014, 0.057], [0.006, 0.06], [-0.004, 0.054]]), 0.016, { size: 0.0012 }), "steel", BLUED);
+    P(extrude(polygon([[0, 0], [L, 0], [L, 0.0035], [0, 0.0035]]), 0.006), "steel", BLUED, 0.064, 0.0425);
+    P(lathe([[0, 0], [0.004, 0], [0.004, 0.026], [0, 0.026]], 10), "steel", CASE, 0.062, 0.01, -0.013);
+  }
   const trigger = new Shape();
   trigger.moveTo(0.002, -0.003);
   trigger.quadraticCurveTo(0.006, -0.014, 0.0, -0.022);
@@ -141,6 +174,7 @@ function buildParts(): Map<string, BufferGeometry> {
   trigger.closePath();
   P(extrude(trigger, 0.004, { size: 0.0006 }), "steel", CASE);
 
+  if (opts.gripless) return;
   // Plow-handle grip: slim at the frame, swelling and sweeping back to a rounded butt; walnut panels, a steel
   // backstrap following the rear curve, and grip screws.
   const grip = new Shape();
@@ -159,15 +193,27 @@ function buildParts(): Map<string, BufferGeometry> {
   strap.closePath();
   P(extrude(strap, 0.014, { size: 0.001 }, 12), "steel", BLUED);
   const screw = lathe([[0, 0], [0.004, 0], [0.0042, 0.0012], [0, 0.0016]], 10);
-  parts.add(screw, { material: "brass", color: BRASS, matrix: profile(-0.045, -0.05, 0.0198).multiply(mat([0, 0, 0], [0, 0, -Math.PI / 2])) });
-  parts.add(screw, { material: "brass", color: BRASS, matrix: profile(-0.045, -0.05, -0.0198).multiply(mat([0, 0, 0], [0, 0, Math.PI / 2])) });
+  parts.add(screw, { material: "brass", color: BRASS, matrix: base.clone().multiply(profile(-0.045, -0.05, 0.0198)).multiply(mat([0, 0, 0], [0, 0, -Math.PI / 2])) });
+  parts.add(screw, { material: "brass", color: BRASS, matrix: base.clone().multiply(profile(-0.045, -0.05, -0.0198)).multiply(mat([0, 0, 0], [0, 0, Math.PI / 2])) });
 
-  return parts.build();
+}
+
+const geometryCache = new Map<string, Map<string, BufferGeometry>>();
+
+/** Merged geometry per material for a revolver variant (cached by name). */
+export function revolverGeometry(name: string, opts: RevolverOptions): Map<string, BufferGeometry> {
+  let g = geometryCache.get(name);
+  if (!g) {
+    const parts = new PartList({ skinned: false });
+    addRevolver(parts, opts);
+    g = parts.build();
+    geometryCache.set(name, g);
+  }
+  return g;
 }
 
 export function colt45Geometry(): Map<string, BufferGeometry> {
-  geometryCache.value ??= buildParts();
-  return geometryCache.value;
+  return revolverGeometry("colt45", COLT_OPTIONS);
 }
 
 export function buildColt45(): { group: Group; triangles: number } {

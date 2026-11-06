@@ -7,6 +7,7 @@ import { BONE_NAMES } from "@/game3d/procedural/character/skeleton";
 import { DEFAULT_SPEC } from "@/game3d/procedural/character/spec";
 import { sweep } from "@/game3d/procedural/core/sweep";
 import { buildColt45 } from "@/game3d/procedural/weapons/colt45";
+import { buildWeapon, WEAPON_IDS } from "@/game3d/procedural/weapons";
 import { buildSaloon } from "@/game3d/procedural/buildings/saloon";
 import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "@/game3d/procedural/buildings/town";
 
@@ -142,5 +143,15 @@ describe("the rest of the town", () => {
       const g = (o as Mesh).geometry;
       if (g) expect(finite(g)).toBe(true);
     });
+  });
+});
+
+describe("weapons", () => {
+  it.each(WEAPON_IDS)("%s is a light, valid model", (id) => {
+    const { group, triangles } = buildWeapon(id);
+    console.log(`[budget] ${id} ${triangles} tris, ${group.children.length} meshes`);
+    expect(triangles).toBeGreaterThan(800);
+    expect(triangles).toBeLessThan(10_000);
+    for (const m of group.children) expect(finite((m as Mesh).geometry)).toBe(true);
   });
 });
