@@ -17,7 +17,8 @@ export type MaterialKey =
   | "hair"
   | "glass"
   | "lamp"
-  | "sign";
+  | "sign"
+  | "stone";
 
 type Grain = "weave" | "wood" | "paint" | "leather" | "brushed" | "none";
 
@@ -34,6 +35,7 @@ const SPEC: Record<MaterialKey, { roughness: number; metalness: number; grain: G
   glass: { roughness: 0.08, metalness: 0.1, grain: "none", opacity: 0.75 },
   lamp: { roughness: 0.4, metalness: 0, grain: "none", emissive: "#ffb347" },
   sign: { roughness: 0.75, metalness: 0, grain: "none" },
+  stone: { roughness: 0.95, metalness: 0, grain: "leather", repeat: 2 },
 };
 
 const cache = new Map<string, MeshStandardMaterial>();

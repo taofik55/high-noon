@@ -12,6 +12,7 @@ import type { CharacterId } from "@/engine";
 import { BONE_NAMES } from "../character/skeleton";
 import { buildColt45 } from "../weapons/colt45";
 import { buildSaloon } from "../buildings/saloon";
+import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "../buildings/town";
 import { StudioEnvironment } from "../StudioEnvironment";
 
 import type { AssetId } from "./assetList";
@@ -83,7 +84,17 @@ function load(asset: AssetId, who: CharacterId | "master"): Loaded {
     group.scale.setScalar(4);
     return { object: group, character: null, gun: null, triangles };
   }
-  const { group, triangles } = buildSaloon();
+  const builders = {
+    saloon: buildSaloon,
+    sheriff: buildSheriff,
+    bank: buildBank,
+    store: buildStore,
+    stable: buildStable,
+    undertaker: buildUndertaker,
+    water_tower: buildWaterTower,
+    stagecoach_stop: buildStagecoachStop,
+  } as const;
+  const { group, triangles } = builders[asset]();
   return { object: group, character: null, gun: null, triangles };
 }
 
@@ -129,8 +140,8 @@ function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, au
     let dist = Math.max(size.x, size.y, size.z) * 1.7 + 0.3;
     if (view === "close") {
       if (loaded.character) centre = new Vector3(0, 1.68, 0);
-      else if (asset === "saloon") centre = new Vector3(0, 3.2, 4.5);
-      dist = loaded.character ? 0.75 : asset === "saloon" ? 7 : dist * 0.6;
+      else if (asset !== "colt45" && asset !== "lineup") centre = new Vector3(0, size.y * 0.45, box.max.z - 1);
+      dist = loaded.character ? 0.75 : asset === "colt45" ? dist * 0.6 : Math.max(size.x, size.y) * 0.9;
     }
     const dir = {
       threeQuarter: new Vector3(0.55, 0.25, 0.85),

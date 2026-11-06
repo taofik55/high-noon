@@ -1,6 +1,5 @@
 import {
   BackSide,
-  CanvasTexture,
   Color,
   Group,
   Matrix4,
@@ -9,7 +8,6 @@ import {
   Path,
   PlaneGeometry,
   Shape,
-  SRGBColorSpace,
   Vector3,
   type BufferGeometry,
   type ColorRepresentation,
@@ -17,6 +15,7 @@ import {
 import { InstanceSet } from "../core/instances";
 import { PartList, triangleCount } from "../core/parts";
 import { extrude, lathe, mat, polygon, roundedRect } from "../core/shapes";
+import { bracketShape, cornice, plankGeometry, prototype, prototypeBox, signTexture, turnedProfile, type BuiltBuilding, type Opening } from "./kit";
 import { isMaterialKey, material, type MaterialKey } from "../materials";
 
 /**
@@ -43,14 +42,6 @@ const FLOOR2 = 3.6;
 const EAVE = 6.4;
 const PORCH = 2.6;
 
-interface Opening {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  kind: "door" | "window" | "batwing";
-}
-
 const FRONT_OPENINGS: Opening[] = [
   { x: 0, y: DECK, w: 1.7, h: 2.55, kind: "batwing" },
   { x: -2.9, y: DECK + 0.85, w: 1.15, h: 1.65, kind: "window" },
@@ -59,127 +50,6 @@ const FRONT_OPENINGS: Opening[] = [
   { x: -2.9, y: FLOOR2 + 0.6, w: 1.0, h: 1.4, kind: "window" },
   { x: 2.9, y: FLOOR2 + 0.6, w: 1.0, h: 1.4, kind: "window" },
 ];
-
-/** A prototype geometry with the colour attribute the shared vertex-colour materials expect. */
-function prototype(g: BufferGeometry, color: ColorRepresentation = "#ffffff"): BufferGeometry {
-  const parts = new PartList({ skinned: false });
-  parts.add(g, { material: "x", color });
-  return parts.build().get("x") as BufferGeometry;
-}
-
-/** A plank 1 m long along X with rounded edges (scaled per instance). */
-function plankGeometry(): BufferGeometry {
-  // Chamfered section (8 points): edges still catch the light, at a third of a rounded section's triangles.
-  const c = 0.008;
-  const section = polygon([
-    [-0.017 + c, -0.5],
-    [0.017 - c, -0.5],
-    [0.017, -0.5 + c],
-    [0.017, 0.5 - c],
-    [0.017 - c, 0.5],
-    [-0.017 + c, 0.5],
-    [-0.017, 0.5 - c],
-    [-0.017, -0.5 + c],
-  ]);
-  const g = extrude(section, 1, undefined, 1);
-  // Section in XY (thickness × width), extruded along Z → turn so length runs along X.
-  g.applyMatrix4(mat([0, 0, 0], [0, Math.PI / 2, 0]));
-  return prototype(g);
-}
-
-/** Classical moulding profile (fillet, cove, fascia) for cornices, in the YZ plane of a run along X. */
-function mouldingShape(scale: number): Shape {
-  const s = new Shape();
-  const p: [number, number][] = [
-    [0, 0],
-    [0.06, 0],
-    [0.06, 0.04],
-    [0.1, 0.07],
-    [0.16, 0.12],
-    [0.2, 0.2],
-    [0.24, 0.22],
-    [0.24, 0.27],
-    [0, 0.27],
-  ];
-  p.forEach(([x, y], i) => (i === 0 ? s.moveTo(x * scale, y * scale) : s.lineTo(x * scale, y * scale)));
-  s.closePath();
-  return s;
-}
-
-/** A cornice run of `length` along X, profile facing +Z. */
-function cornice(length: number, scale: number): BufferGeometry {
-  const g = extrude(mouldingShape(scale), length, undefined, 2);
-  // Profile drawn as (depth out, height); extruded along Z → rotate so the run is along X and depth points to +Z.
-  g.applyMatrix4(mat([0, 0, 0], [0, -Math.PI / 2, 0]));
-  return g;
-}
-
-/** Scroll bracket outline (drawn in the side plane: x = out from the wall, y = up). */
-function bracketShape(size: number): Shape {
-  const s = new Shape();
-  s.moveTo(0, 0);
-  s.lineTo(0, size);
-  s.lineTo(size * 0.75, size);
-  s.bezierCurveTo(size * 0.75, size * 0.55, size * 0.45, size * 0.55, size * 0.35, size * 0.35);
-  s.bezierCurveTo(size * 0.25, size * 0.15, size * 0.15, 0.0, 0, 0);
-  const hole = new Path();
-  hole.absarc(size * 0.42, size * 0.72, size * 0.12, 0, Math.PI * 2, true);
-  s.holes.push(hole);
-  return s;
-}
-
-function turnedProfile(h: number, r: number): [number, number][] {
-  // Base block, torus, long shaft with a swell, collar, capital.
-  return [
-    [0, 0],
-    [r * 1.35, 0],
-    [r * 1.35, h * 0.06],
-    [r * 1.05, h * 0.075],
-    [r * 1.2, h * 0.09],
-    [r * 0.8, h * 0.11],
-    [r * 0.92, h * 0.35],
-    [r * 0.8, h * 0.7],
-    [r * 1.05, h * 0.82],
-    [r * 0.85, h * 0.85],
-    [r * 0.95, h * 0.9],
-    [r * 1.35, h * 0.94],
-    [r * 1.35, h],
-    [0, h],
-  ];
-}
-
-function signTexture(text: string): CanvasTexture | null {
-  if (typeof document === "undefined") return null;
-  const c = document.createElement("canvas");
-  c.width = 1024;
-  c.height = 192;
-  const ctx = c.getContext("2d");
-  if (!ctx) return null;
-  ctx.fillStyle = "#e6d6ae";
-  ctx.fillRect(0, 0, c.width, c.height);
-  // Weathering streaks.
-  for (let i = 0; i < 40; i++) {
-    ctx.fillStyle = `rgba(90,60,30,${0.03 + (i % 5) * 0.01})`;
-    ctx.fillRect((i * 97) % c.width, 0, 3 + (i % 4), c.height);
-  }
-  ctx.fillStyle = "#5a1d14";
-  ctx.font = "bold 132px Georgia, 'Times New Roman', serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text.split("").join(" "), c.width / 2, c.height / 2 + 6);
-  ctx.strokeStyle = "#5a1d14";
-  ctx.lineWidth = 6;
-  ctx.strokeRect(18, 18, c.width - 36, c.height - 36);
-  const t = new CanvasTexture(c);
-  t.colorSpace = SRGBColorSpace;
-  return t;
-}
-
-export interface BuiltBuilding {
-  group: Group;
-  triangles: number;
-  drawCalls: number;
-}
 
 export function buildSaloon(): BuiltBuilding {
   const parts = new PartList({ skinned: false });
@@ -506,7 +376,7 @@ export function buildSaloon(): BuiltBuilding {
   }
 
   // The sign face (its own material: the only texture with lettering).
-  const tex = signTexture("SALOON");
+  const tex = signTexture("SALOON", undefined, signW / signH);
   const sign = new Mesh(new PlaneGeometry(signW, signH), new MeshStandardMaterial({ map: tex, color: tex ? "#ffffff" : "#e6d6ae", roughness: 0.8 }));
   sign.position.set(0, signY, FRONT + 0.09);
   sign.name = "saloon.sign";
@@ -526,10 +396,4 @@ export function buildSaloon(): BuiltBuilding {
   drawCalls++;
 
   return { group, triangles, drawCalls };
-}
-
-/** Hidden interior shell: never seen from outside except through openings, so a plain box is right here. */
-function prototypeBox(w: number, h: number, d: number): BufferGeometry {
-  const s = roundedRect(w, h, 0.001);
-  return extrude(s, d, undefined, 1);
 }

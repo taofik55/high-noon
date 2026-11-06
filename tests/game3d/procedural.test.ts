@@ -8,6 +8,7 @@ import { DEFAULT_SPEC } from "@/game3d/procedural/character/spec";
 import { sweep } from "@/game3d/procedural/core/sweep";
 import { buildColt45 } from "@/game3d/procedural/weapons/colt45";
 import { buildSaloon } from "@/game3d/procedural/buildings/saloon";
+import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "@/game3d/procedural/buildings/town";
 
 function finite(g: BufferGeometry): boolean {
   const a = g.getAttribute("position").array as ArrayLike<number>;
@@ -116,6 +117,27 @@ describe("colt .45 and saloon", () => {
     console.log(`[budget] saloon ${triangles} tris, ${drawCalls} draw calls`);
     expect(drawCalls).toBeLessThanOrEqual(16);
     expect(triangles).toBeLessThan(120_000);
+    group.traverse((o) => {
+      const g = (o as Mesh).geometry;
+      if (g) expect(finite(g)).toBe(true);
+    });
+  });
+});
+
+describe("the rest of the town", () => {
+  it.each([
+    ["sheriff", buildSheriff],
+    ["bank", buildBank],
+    ["store", buildStore],
+    ["stable", buildStable],
+    ["undertaker", buildUndertaker],
+    ["water_tower", buildWaterTower],
+    ["stagecoach_stop", buildStagecoachStop],
+  ] as const)("%s is valid and light", (name, build) => {
+    const { group, triangles, drawCalls } = build();
+    console.log(`[budget] ${name} ${triangles} tris, ${drawCalls} draw calls`);
+    expect(drawCalls).toBeLessThanOrEqual(16);
+    expect(triangles).toBeLessThan(60_000);
     group.traverse((o) => {
       const g = (o as Mesh).geometry;
       if (g) expect(finite(g)).toBe(true);
