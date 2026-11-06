@@ -2,6 +2,7 @@ import { Group, Object3D, SkinnedMesh, type BufferGeometry, type Skeleton } from
 import { PartList, triangleCount } from "../core/parts";
 import { isMaterialKey, material } from "../materials";
 import { buildArms, buildLegs, buildTorso } from "./body";
+import { buildSignature } from "./extras";
 import { buildGear, HOLSTER_SOCKET } from "./gear";
 import { buildHands } from "./hands";
 import { buildHat } from "./hat";
@@ -13,7 +14,9 @@ export interface BuiltCharacter {
   group: Group;
   skeleton: Skeleton;
   /** Empty objects on bones where weapons attach: the right palm and the holster. */
-  sockets: { rightHand: Object3D; holster: Object3D };
+  sockets: { rightHand: Object3D; holster: Object3D; holsterLeft: Object3D | null };
+  /** False when the outfit has no gun belt (the holster socket is then empty). */
+  hasHolster: boolean;
   triangles: number;
 }
 
@@ -32,6 +35,7 @@ export function characterGeometry(spec: CharacterSpec): Map<string, BufferGeomet
   buildHead(parts, spec);
   buildHat(parts, spec);
   buildGear(parts, spec);
+  buildSignature(parts, spec);
   const built = parts.build();
   geometryCache.set(key, built);
   return built;
@@ -76,5 +80,16 @@ export function buildCharacter(spec: CharacterSpec = DEFAULT_SPEC): BuiltCharact
   holster.rotation.set(...HOLSTER_SOCKET.rotation);
   (bones[BONE.Hips] as Object3D).add(holster);
 
-  return { group, skeleton, sockets: { rightHand, holster }, triangles };
+  // Two-gun characters carry a second revolver in a mirrored holster on the left (never drawn: one gun is enough).
+  let holsterLeft: Object3D | null = null;
+  if (spec.twoGuns) {
+    holsterLeft = new Object3D();
+    holsterLeft.name = "socket.holsterLeft";
+    holsterLeft.position.set(-holster.position.x, holster.position.y, holster.position.z);
+    holsterLeft.rotation.set(HOLSTER_SOCKET.rotation[0], -HOLSTER_SOCKET.rotation[1], -HOLSTER_SOCKET.rotation[2]);
+    (bones[BONE.Hips] as Object3D).add(holsterLeft);
+  }
+  // Height varies by uniform scale, so every clip still fits the shared skeleton.
+  group.scale.setScalar(spec.height);
+  return { group, skeleton, sockets: { rightHand, holster, holsterLeft }, hasHolster: spec.coat !== "dress", triangles };
 }

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { SkinnedMesh, Vector3, type BufferGeometry, type Mesh } from "three";
 import { buildCharacter, characterGeometry } from "@/game3d/procedural/character/cowboy";
 import { buildClips } from "@/game3d/procedural/character/clips";
+import { ROSTER } from "@/game3d/procedural/character/roster";
 import { BONE_NAMES } from "@/game3d/procedural/character/skeleton";
 import { DEFAULT_SPEC } from "@/game3d/procedural/character/spec";
 import { sweep } from "@/game3d/procedural/core/sweep";
@@ -79,6 +80,25 @@ describe("master cowboy", () => {
     for (const clip of buildClips()) {
       for (const t of clip.tracks) expect(names.has(t.name.split(".")[0] as string), `${clip.name}: ${t.name}`).toBe(true);
     }
+  });
+});
+
+describe("the 16 characters", () => {
+  it.each(Object.entries(ROSTER))("%s stays within budget with valid skinning", (id, spec) => {
+    const c = buildCharacter(spec);
+    console.log(`[budget] ${id} ${c.triangles} tris, ${characterGeometry(spec).size} materials`);
+    expect(c.triangles).toBeLessThanOrEqual(25_000);
+    expect(characterGeometry(spec).size).toBeLessThanOrEqual(9);
+    for (const g of characterGeometry(spec).values()) {
+      expect(finite(g)).toBe(true);
+      const w = g.getAttribute("skinWeight");
+      for (let v = 0; v < w.count; v += 7) expect(Math.abs(w.getX(v) + w.getY(v) + w.getZ(v) + w.getW(v) - 1)).toBeLessThan(1e-4);
+    }
+  });
+
+  it("are visibly different from each other", () => {
+    const keys = new Set(Object.values(ROSTER).map((s) => JSON.stringify(s)));
+    expect(keys.size).toBe(16);
   });
 });
 

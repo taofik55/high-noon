@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import { CAMERA_PRESETS, type AssetId, type AssetStats, type CameraPreset } from "./AssetViewer";
 import { ASSET_LIST } from "./assetList";
+import { CHARACTER_IDS, CHARACTERS, type CharacterId } from "@/engine";
 
 // three.js must never render on the server.
 const AssetViewer = dynamic(() => import("./AssetViewer").then((m) => m.AssetViewer), { ssr: false });
@@ -19,6 +20,7 @@ export function AssetsPage() {
   const [autoRotate, setAutoRotate] = useState(false);
   const [stats, setStats] = useState<AssetStats | null>(null);
   const [view, setView] = useState<CameraPreset>("threeQuarter");
+  const [character, setCharacter] = useState<CharacterId | "master">("master");
   const onStats = useCallback((s: AssetStats) => setStats(s), []);
   const onClips = useCallback((names: string[]) => setClips(names), []);
 
@@ -56,6 +58,22 @@ export function AssetsPage() {
 
         {asset === "cowboy" && (
           <div className="flex flex-col gap-2">
+            <label className="flex items-center justify-between gap-2">
+              Karakter
+              <select
+                data-testid="character"
+                className="rounded bg-stone-800 px-1 py-0.5"
+                value={character}
+                onChange={(e) => setCharacter(e.target.value as CharacterId | "master")}
+              >
+                <option value="master">Cowboy (master)</option>
+                {CHARACTER_IDS.map((id) => (
+                  <option key={id} value={id}>
+                    {CHARACTERS[id].name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="flex items-center justify-between gap-2">
               Clip
               <select data-testid="clip" className="rounded bg-stone-800 px-1 py-0.5" value={clip} onChange={(e) => setClip(e.target.value)}>
@@ -100,7 +118,7 @@ export function AssetsPage() {
         <p className="text-xs text-stone-500">Draw call termasuk lantai pratinjau (1) dan bayangan.</p>
       </aside>
       <main className="relative flex-1">
-        <AssetViewer asset={asset} view={view} clip={clip} playing={playing} gunInHand={gunInHand} wireframe={wireframe} autoRotate={autoRotate} onStats={onStats} onClips={onClips} />
+        <AssetViewer asset={asset} character={character} view={view} clip={clip} playing={playing} gunInHand={gunInHand} wireframe={wireframe} autoRotate={autoRotate} onStats={onStats} onClips={onClips} />
       </main>
     </div>
   );

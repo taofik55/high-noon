@@ -1,9 +1,10 @@
-import { Color, Shape, Vector3 } from "three";
+import { Color, Shape } from "three";
 import type { PartList } from "../core/parts";
 import { extrude, lathe, mat, polygon, v3 } from "../core/shapes";
 import { sweep, type Ring } from "../core/sweep";
 import { BONE } from "./skeleton";
-import { chainSkin, smooth } from "./skin";
+import { chainSkin, skirtSkin, torsoSkin, vertexPositions } from "./skin";
+import { buildChaps, buildDress, buildFringe, buildPoncho } from "./outer";
 import type { CharacterSpec } from "./spec";
 
 // Clothing and limbs of the master cowboy, built in the rest pose (metres, facing +Z, left on +X).
@@ -13,41 +14,8 @@ const FWD = v3(0, 0, 1);
 type Side = 1 | -1;
 const L = (side: Side, left: number, right: number) => (side === 1 ? left : right);
 
-/** Torso skin: the spine chain by height. */
-function torsoSkin(y: number) {
-  const chain: [number, number][] = [
-    [0.0, BONE.Hips],
-    [1.05, BONE.Spine],
-    [1.17, BONE.Spine1],
-    [1.29, BONE.Spine2],
-    [1.49, BONE.Neck],
-  ];
-  let i = 0;
-  while (i + 1 < chain.length && y >= (chain[i + 1] as [number, number])[0] - 0.04) i++;
-  const [from, bone] = chain[i] as [number, number];
-  const prev = chain[i - 1];
-  if (prev && y < from + 0.04) {
-    const w = smooth(from - 0.04, from + 0.04, y);
-    return { bones: [bone, prev[1]], weights: [w, 1 - w] };
-  }
-  return { bones: [bone], weights: [1] };
-}
-
-/** Skirt of a long coat: follows the hips, and the thigh on its side as it hangs lower. */
-function skirtSkin(p: Vector3) {
-  if (p.y > 0.97) return torsoSkin(p.y);
-  const leg = p.x >= 0 ? BONE.LeftUpLeg : BONE.RightUpLeg;
-  const w = 0.65 * smooth(0.02, 0.12, Math.abs(p.x)) * smooth(0.97, 0.6, p.y);
-  return { bones: [BONE.Hips, leg], weights: [1 - w, w] };
-}
-
-function vertexPositions(g: { getAttribute(n: string): { getX(i: number): number; getY(i: number): number; getZ(i: number): number; count: number } }) {
-  const pos = g.getAttribute("position");
-  return (v: number) => new Vector3(pos.getX(v), pos.getY(v), pos.getZ(v));
-}
-
 export function buildLegs(parts: PartList, spec: CharacterSpec): void {
-  const k = spec.bulk;
+  const k = spec.bulk * (spec.body === "female" ? 1.04 : 1);
   // Seat of the trousers: one wide loft the legs grow out of.
   const pelvis = sweep({
     path: [v3(0, 0.86, 0.0), v3(0, 0.93, -0.005), v3(0, 1.01, 0)],
@@ -60,7 +28,9 @@ export function buildLegs(parts: PartList, spec: CharacterSpec): void {
     radial: 20,
     samples: 5,
   });
-  parts.add(pelvis.geometry, { material: "cloth", color: spec.palette.trousers, bone: BONE.Hips });
+  // Under a dress only the boots show: no trousers to poke through the skirt.
+  const trousers = spec.coat !== "dress";
+  if (trousers) parts.add(pelvis.geometry, { material: "cloth", color: spec.palette.trousers, bone: BONE.Hips });
 
   for (const side of [1, -1] as Side[]) {
     const x = 0.094 * side;
@@ -83,7 +53,7 @@ export function buildLegs(parts: PartList, spec: CharacterSpec): void {
       },
     });
     const sideName = side === 1 ? "Left" : "Right";
-    parts.add(leg.geometry, {
+    if (trousers) parts.add(leg.geometry, {
       material: "cloth",
       color: spec.palette.trousers,
       skin: chainSkin(leg.along, [
@@ -94,6 +64,7 @@ export function buildLegs(parts: PartList, spec: CharacterSpec): void {
     });
     buildBoot(parts, spec, side);
   }
+  if (spec.chaps) buildChaps(parts, spec);
 }
 
 function buildBoot(parts: PartList, spec: CharacterSpec, side: Side): void {
@@ -198,25 +169,39 @@ function buildBoot(parts: PartList, spec: CharacterSpec, side: Side): void {
 }
 
 const TORSO_Y = [0.97, 1.1, 1.22, 1.33, 1.42, 1.48, 1.53] as const;
-function torsoRings(k: number, grow: number, gaps?: readonly number[]): Ring[] {
-  const base: [number, number, number, number][] = [
-    [0.158, 0.1, 0.102, 2],
-    [0.15, 0.1, 0.096, 2],
-    [0.165, 0.115, 0.1, 2.1],
-    [0.18, 0.124, 0.104, 2.3],
-    [0.186, 0.11, 0.1, 2.5],
-    [0.14, 0.088, 0.088, 2.1],
-    [0.062, 0.056, 0.056, 2],
-  ];
+export function torsoRings(k: number, grow: number, gaps?: readonly number[], female = false): Ring[] {
+  // [w, f, b, p] per height in TORSO_Y. The female table has wider hips, a narrow waist, a bust and narrower shoulders.
+  const base: [number, number, number, number][] = female
+    ? [
+        [0.165, 0.1, 0.112, 2],
+        [0.128, 0.085, 0.084, 2],
+        [0.142, 0.1, 0.088, 2.1],
+        [0.158, 0.135, 0.094, 2.2],
+        [0.165, 0.104, 0.094, 2.4],
+        [0.125, 0.08, 0.08, 2.1],
+        [0.055, 0.05, 0.05, 2],
+      ]
+    : [
+        [0.158, 0.1, 0.102, 2],
+        [0.15, 0.1, 0.096, 2],
+        [0.165, 0.115, 0.1, 2.1],
+        [0.18, 0.124, 0.104, 2.3],
+        [0.186, 0.11, 0.1, 2.5],
+        [0.14, 0.088, 0.088, 2.1],
+        [0.062, 0.056, 0.056, 2],
+      ];
   return base.map(([w, f, b, p], i) => ({ w: w * k + grow, f: f * k + grow, b: b * k + grow, p, gap: gaps?.[i] ?? 0 }));
 }
 
 export function buildTorso(parts: PartList, spec: CharacterSpec): void {
   const k = spec.bulk;
   const path = TORSO_Y.map((y) => v3(0, y, -0.01));
-  const shirt = sweep({ path, rings: torsoRings(k, 0), front: FWD, radial: 24, samples: 16 });
+  const female = spec.body === "female";
+  // A dress has a fitted bodice in the dress colour instead of a shirt.
+  const top = spec.coat === "dress" ? spec.palette.coat : spec.palette.shirt;
+  const shirt = sweep({ path, rings: torsoRings(k, 0, undefined, female), front: FWD, radial: 24, samples: 16 });
   const at = vertexPositions(shirt.geometry);
-  parts.add(shirt.geometry, { material: "cloth", color: spec.palette.shirt, skin: (v) => torsoSkin(at(v).y) });
+  parts.add(shirt.geometry, { material: "cloth", color: top, skin: (v) => torsoSkin(at(v).y) });
 
   // Shirt collar: a short band with two pointed tips.
   const collar = sweep({
@@ -228,12 +213,12 @@ export function buildTorso(parts: PartList, spec: CharacterSpec): void {
     front: FWD,
     radial: 18,
   });
-  parts.add(collar.geometry, { material: "cloth", color: spec.palette.shirt, bone: BONE.Neck });
+  parts.add(collar.geometry, { material: "cloth", color: top, bone: BONE.Neck });
   if (spec.vest) {
     const vestPath = TORSO_Y.slice(0, 5).map((y, i) => v3(0, i === 0 ? 0.955 : y, -0.01));
     const vest = sweep({
       path: vestPath,
-      rings: torsoRings(k, 0.009, [0.05, 0.045, 0.07, 0.2, 0.42]).slice(0, 5),
+      rings: torsoRings(k, 0.009, [0.05, 0.045, 0.07, 0.2, 0.42], female).slice(0, 5),
       front: FWD,
       radial: 24,
       samples: 13,
@@ -282,13 +267,14 @@ export function buildTorso(parts: PartList, spec: CharacterSpec): void {
     matrix: mat([0, 1.497, 0.083], [Math.PI / 2, 0, 0], [1.2, 1, 0.8]),
   });
 
-  if (spec.coat !== "none") buildCoat(parts, spec);
+  if (spec.coat === "poncho") buildPoncho(parts, spec);
+  else if (spec.coat === "dress") buildDress(parts, spec);
+  else if (spec.coat !== "none") buildCoat(parts, spec);
 }
 
 function buildCoat(parts: PartList, spec: CharacterSpec): void {
-  const k = spec.bulk;
-  const duster = spec.coat === "duster";
-  const hem = duster ? 0.32 : 0.52;
+  const k = spec.bulk * (spec.body === "female" ? 0.93 : 1);
+  const hem = { frock: 0.52, duster: 0.32, suit: 0.82, fringe: 0.8 }[spec.coat as "frock" | "duster" | "suit" | "fringe"] ?? 0.52;
   const ys = [hem, (hem + 0.97) / 2, 0.97, 1.1, 1.22, 1.33, 1.42, 1.475, 1.51];
   const rings: Ring[] = [
     { w: 0.225 * k, f: 0.17 * k, b: 0.18 * k, gap: 0.62 },
@@ -299,7 +285,7 @@ function buildCoat(parts: PartList, spec: CharacterSpec): void {
     { w: 0.194 * k, f: 0.138 * k, b: 0.118 * k, gap: 0.66, p: 2.3 },
     { w: 0.2 * k, f: 0.124 * k, b: 0.114 * k, gap: 0.7, p: 2.5 },
     { w: 0.165 * k, f: 0.102 * k, b: 0.106 * k, gap: 0.72, p: 2.1 },
-    { w: 0.09, f: 0.08, b: 0.086, gap: 0.95 },
+    { w: 0.104, f: 0.09, b: 0.096, gap: 0.95 },
   ];
   const coat = sweep({
     path: ys.map((y) => v3(0, y, -0.01)),
@@ -319,19 +305,20 @@ function buildCoat(parts: PartList, spec: CharacterSpec): void {
   parts.add(coat.geometry, { material: "cloth", color: spec.palette.coat, skin: (v) => skirtSkin(at(v)) });
 
   // Lapels: strips that follow each edge of the opening, standing slightly proud and widening toward the chest.
-  const lapelYs = [1.05, 1.18, 1.3, 1.4, 1.45, 1.475];
+  if (spec.coat === "fringe") buildFringe(parts, spec, rings[0] as Ring, hem);
+  const lapelYs = [1.05, 1.18, 1.3, 1.4, 1.44, 1.46];
   const lapelRings = lapelYs.map((y, i) => {
     const r = rings[Math.min(rings.length - 1, ys.findIndex((yy) => yy >= y))] as Ring;
     const grow = 0.007;
-    return { w: r.w + grow, f: r.f + grow, b: r.b + grow, p: r.p, gap: (r.gap ?? 0) - 0.02, span: [0.08, 0.16, 0.3, 0.4, 0.3, 0.12][i] as number };
+    return { w: r.w + grow, f: r.f + grow, b: r.b + grow, p: r.p, gap: (r.gap ?? 0) - 0.02, span: [0.08, 0.16, 0.3, 0.38, 0.24, 0.08][i] as number };
   });
   for (const side of [1, -1] as Side[]) {
     const lapel = sweep({ path: lapelYs.map((y) => v3(0, y, -0.01)), rings: lapelRings, front: FWD, radial: 6, samples: 14, spanSide: side });
     const lat = vertexPositions(lapel.geometry);
     parts.add(lapel.geometry, { material: "cloth", color: new Color(spec.palette.coat).multiplyScalar(0.86), skin: (v) => torsoSkin(lat(v).y) });
   }
-  // Pocket flaps on the hips, lying on the skirt.
-  for (const side of [1, -1] as Side[]) {
+  // Pocket flaps on the hips, lying on the skirt (long coats only).
+  for (const side of (hem < 0.7 ? [1, -1] : []) as Side[]) {
     const flap = extrude(polygon([[-0.045, 0], [0.045, 0], [0.042, -0.035], [-0.042, -0.035]]), 0.005, { size: 0.0015 });
     parts.add(flap, { material: "cloth", color: new Color(spec.palette.coat).multiplyScalar(0.9), bone: BONE.Hips, matrix: mat([0.14 * side * k, 0.9, 0.088 * k], [0, side * 0.7, 0]) });
   }
@@ -339,7 +326,7 @@ function buildCoat(parts: PartList, spec: CharacterSpec): void {
 
 export function buildArms(parts: PartList, spec: CharacterSpec): void {
   const k = spec.bulk;
-  const sleeveColor = spec.coat === "none" ? spec.palette.shirt : spec.palette.coat;
+  const sleeveColor = spec.coat === "none" || spec.coat === "poncho" ? spec.palette.shirt : spec.palette.coat;
   for (const side of [1, -1] as Side[]) {
     const s = side;
     const sideName = side === 1 ? "Left" : "Right";

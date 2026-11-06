@@ -41,9 +41,9 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
 
   // Skull and face. Rings from under the chin to the crown; oz pushes the chin and jaw forward of the skull centre.
   const levels: [number, Ring][] = [
-    [1.552, { w: 0.022 * jaw, f: 0.016, b: 0.016, oz: 0.064 }],
-    [1.566, { w: 0.05 * jaw, f: 0.04, b: 0.03, oz: 0.042, p: 2.2 }],
-    [1.585, { w: 0.064 * jaw, f: 0.068, b: 0.05, oz: 0.022, p: 2.5 }],
+    [1.558, { w: 0.022 * jaw, f: 0.016, b: 0.016, oz: 0.062 }],
+    [1.571, { w: 0.05 * jaw, f: 0.04, b: 0.03, oz: 0.041, p: 2.2 }],
+    [1.588, { w: 0.064 * jaw, f: 0.068, b: 0.05, oz: 0.022, p: 2.5 }],
     [1.61, { w: 0.069 * jaw, f: 0.083, b: 0.072, oz: 0.01, p: 2.3 }],
     [1.64, { w: 0.073, f: 0.088, b: 0.088, oz: 0.002, p: 2.1 }],
     [1.672, { w: 0.075, f: 0.087, b: 0.097, oz: -0.004, p: 2.1 }],
@@ -56,6 +56,13 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
   const eyeY = 1.684;
   const eyeX = 0.031;
   const browY = 1.71 + f.brow;
+  // A woman's face: the lower face a little shorter and the chin softer.
+  if (spec.body === "female") {
+    for (const l of levels) {
+      if (l[0] < 1.6) l[0] += 0.007 * (1.6 - l[0]) / 0.042;
+      if (l[0] < 1.575) l[1] = { ...l[1], oz: (l[1].oz ?? 0) * 0.85 };
+    }
+  }
   const head = sweep({
     path: levels.map(([y]) => v3(0, y, 0)),
     rings: levels.map(([, r]) => r),
@@ -74,14 +81,16 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
       p.z += 0.004 * cheek;
       // Mouth: a slight upper-lip bulge and a dent under the lower lip.
       p.z += 0.004 * front * bump(p.x, p.y - 1.603, 0.022, 0.006);
-      p.z -= 0.004 * front * bump(p.x, p.y - 1.584, 0.02, 0.005);
+      p.z -= 0.004 * front * bump(p.x, p.y - 1.587, 0.02, 0.005);
       // Chin point.
-      p.z += 0.005 * front * bump(p.x, p.y - 1.566, 0.018, 0.01);
+      p.z += 0.005 * front * bump(p.x, p.y - 1.571, 0.018, 0.01);
       p.x -= Math.sign(p.x) * 0.004 * bump(ax - 0.074, p.y - 1.715, 0.01, 0.02);
     },
   });
   const pos = head.geometry.getAttribute("position");
-  const lip = new Color(skin).lerp(new Color("#8a4a3c"), 0.45);
+  const female = spec.body === "female";
+  const lip = new Color(skin).lerp(new Color(female ? "#a2404a" : "#8a4a3c"), female ? 0.6 : 0.45);
+  const scarred = spec.signature.includes("scar");
   const stubble = new Color(skin).lerp(new Color(spec.palette.hair), 0.55);
   parts.add(head.geometry, {
     material: "skin",
@@ -100,7 +109,13 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
       out.lerp(new Color("#c06a55"), 0.12 * front * bump(Math.abs(x) - 0.05, y - 1.645, 0.02, 0.015));
       // Sideburns: in front of the ears, from the hairline down to the cheekbone.
       const burns = smooth(0.058, 0.068, Math.abs(x)) * smooth(1.625, 1.64, y) * smooth(1.73, 1.71, y) * smooth(0.045, 0.02, z) * smooth(-0.025, -0.005, z);
-      out.lerp(new Color(spec.palette.hair), Math.min(1, burns * 1.3));
+      if (!female) out.lerp(new Color(spec.palette.hair), Math.min(1, burns * 1.3));
+      // A pale scar across the left cheek, from the cheekbone toward the jaw.
+      if (scarred && x > 0) {
+        const along = (x - 0.03) * 0.8 + (1.67 - y);
+        const across = (x - 0.03) * 0.6 - (1.67 - y) * 0.8 + 0.02;
+        if (along > 0 && along < 0.07) out.lerp(new Color("#e8b8a8"), 0.85 * bump(across, 0, 0.003, 1) * front);
+      }
     },
   });
 
@@ -187,7 +202,7 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
         Array.from({ length: 8 }, (_, i) => {
           const a = Math.PI / 2 - (i / 7) * cover;
           return [Math.cos(a) * (R + 0.0012), Math.sin(a) * (R + 0.0012)] as const;
-        }).concat([[Math.cos(Math.PI / 2 - cover) * (R + 0.0028), Math.sin(Math.PI / 2 - cover) * (R + 0.0028)]]),
+        }).concat([[Math.cos(Math.PI / 2 - cover) * (R + 0.004), Math.sin(Math.PI / 2 - cover) * (R + 0.004)]]),
         16,
       );
       const lidPos = lid.getAttribute("position");
@@ -197,9 +212,9 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
         bone: BONE.Head,
         // Darken the rim of the upper lid into a lash line.
         colorAt: (v, base, out) => {
-          const h = Math.abs(lidPos.getY(v)) / (R + 0.0028);
+          const h = Math.abs(lidPos.getY(v)) / (R + 0.004);
           out.copy(base);
-          if (!flip && h < Math.cos(cover) + 0.12) out.lerp(lash, 0.75);
+          if (!flip && h < Math.cos(cover) + (spec.body === "female" ? 0.22 : 0.12)) out.lerp(lash, spec.body === "female" ? 0.95 : 0.75);
         },
         matrix: mat([eyeX * s, eyeY + (flip ? -0.0005 : 0.0008), eyeZ], flip ? [Math.PI - 0.15, s * 0.12, 0] : [0.18, s * 0.12, 0]),
       });
@@ -214,6 +229,7 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
   brow.quadraticCurveTo(0, 0.014, -0.02, 0.005);
   brow.closePath();
   const browGeo = extrude(brow, 0.0045, { size: 0.0012 });
+  if (female) browGeo.scale(0.95, 0.55, 1);
   for (const s of [1, -1]) {
     parts.add(browGeo, { material: "hair", color: spec.palette.hair, bone: BONE.Head, matrix: mat([0.031 * s, browY, 0.084], [-0.2, s * 0.3, s * -0.08], [s, 1, 1]) });
   }
@@ -238,6 +254,21 @@ export function buildHead(parts: PartList, spec: CharacterSpec): void {
     },
   });
   parts.add(hair.geometry, { material: "hair", color: spec.palette.hair, bone: BONE.Head });
+  buildHairStyle(parts, spec);
+  if (spec.face.beard) buildBeard(parts, spec);
+  if (spec.signature.includes("bandage")) {
+    const band = sweep({
+      path: Array.from({ length: 20 }, (_, i) => {
+        const a = (i / 20) * Math.PI * 2;
+        return v3(Math.cos(a) * 0.079, 1.728 - 0.012 * Math.sin(a), Math.sin(a) * 0.098 - 0.006);
+      }),
+      rings: Array.from({ length: 20 }, () => ({ w: 0.003, f: 0.012, b: 0.012, p: 3 })),
+      front: v3(0, 1, 0),
+      radial: 6,
+      closed: true,
+    });
+    parts.add(band.geometry, { material: "cloth", color: "#e6e0d0", bone: BONE.Head });
+  }
 }
 
 function buildFacialHair(parts: PartList, spec: CharacterSpec): void {
@@ -266,3 +297,59 @@ function buildFacialHair(parts: PartList, spec: CharacterSpec): void {
   const m = sweep({ path, rings, front: new Vector3(0, -0.4, 1).normalize(), radial: 8, samples: 18, capStart: true, capEnd: true });
   parts.add(m.geometry, { material: "hair", color: spec.palette.hair, bone: BONE.Head });
 }
+
+/** Long hair falling to the shoulders, or a bun at the back of the head. */
+function buildHairStyle(parts: PartList, spec: CharacterSpec): void {
+  if (spec.hair === "short") return;
+  if (spec.hair === "long") {
+    const long = sweep({
+      path: [v3(0, 1.43, -0.06), v3(0, 1.52, -0.05), v3(0, 1.62, -0.02), v3(0, 1.72, -0.014)],
+      rings: [
+        { w: 0.1, f: 0.03, b: 0.06, gap: 2.2 },
+        { w: 0.095, f: 0.05, b: 0.085, gap: 2.0 },
+        { w: 0.085, f: 0.08, b: 0.104, gap: 1.75 },
+        { w: 0.083, f: 0.088, b: 0.11, gap: 1.5 },
+      ],
+      front: FWD,
+      radial: 18,
+      samples: 10,
+      deform: (p, u, a) => {
+        if (u < 0.2) p.y -= 0.02 * Math.abs(Math.sin(a * 7)) * (1 - u / 0.2);
+      },
+    });
+    const along = long.along;
+    parts.add(long.geometry, {
+      material: "hair",
+      color: spec.palette.hair,
+      // The ends rest on the shoulders and follow the upper back.
+      skin: (v) => {
+        const w = smooth(0.15, 0.5, along[v] ?? 0);
+        return { bones: [BONE.Head, BONE.Spine2], weights: [w, 1 - w] };
+      },
+    });
+    return;
+  }
+  const bun = lathe([[0, -0.03], [0.022, -0.026], [0.032, -0.01], [0.03, 0.01], [0.018, 0.026], [0, 0.03]], 12);
+  parts.add(bun, { material: "hair", color: spec.palette.hair, bone: BONE.Head, matrix: mat([0, 1.672, -0.11], [Math.PI / 2 - 0.3, 0, 0], [1, 0.8, 1]) });
+}
+
+/** A full beard following the jaw from ear to ear, open at the mouth. */
+function buildBeard(parts: PartList, spec: CharacterSpec): void {
+  const beard = sweep({
+    path: [v3(0, 1.54, 0.02), v3(0, 1.575, 0.02), v3(0, 1.61, 0.012), v3(0, 1.64, 0.0)],
+    rings: [
+      { w: 0.03, f: 0.07, b: 0.0 },
+      { w: 0.068, f: 0.082, b: 0.035, gap: 0.0 },
+      { w: 0.075, f: 0.086, b: 0.07, gap: 0.55 },
+      { w: 0.076, f: 0.078, b: 0.08, gap: 1.15 },
+    ],
+    front: FWD,
+    radial: 20,
+    samples: 8,
+    deform: (p, u, a) => {
+      if (u < 0.3) p.y -= 0.01 * Math.abs(Math.sin(a * 6));
+    },
+  });
+  parts.add(beard.geometry, { material: "hair", color: spec.palette.hair, bone: BONE.Head });
+}
+

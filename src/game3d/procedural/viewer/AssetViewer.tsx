@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { AnimationMixer, Box3, Mesh, Vector3, type AnimationAction, type Material, type MeshStandardMaterial, type Object3D } from "three";
+import { AnimationMixer, Box3, Group, Mesh, Vector3, type AnimationAction, type Material, type MeshStandardMaterial, type Object3D } from "three";
 import { buildCharacter, type BuiltCharacter } from "../character/cowboy";
 import { buildClips } from "../character/clips";
+import { ROSTER } from "../character/roster";
+import { DEFAULT_SPEC } from "../character/spec";
+import type { CharacterId } from "@/engine";
 import { BONE_NAMES } from "../character/skeleton";
 import { buildColt45 } from "../weapons/colt45";
 import { buildSaloon } from "../buildings/saloon";
@@ -36,6 +39,8 @@ export const CAMERA_PRESETS: { id: CameraPreset; label: string }[] = [
 
 interface ViewerProps {
   asset: AssetId;
+  /** Which character to show for the "cowboy" asset: the master or one of the 16. */
+  character: CharacterId | "master";
   view: CameraPreset;
   clip: string;
   playing: boolean;
@@ -54,11 +59,24 @@ interface Loaded {
   triangles: number;
 }
 
-function load(asset: AssetId): Loaded {
+function load(asset: AssetId, who: CharacterId | "master"): Loaded {
   if (asset === "cowboy") {
-    const character = buildCharacter();
+    const character = buildCharacter(who === "master" ? DEFAULT_SPEC : ROSTER[who]);
     const gun = buildColt45().group;
-    return { object: character.group, character, gun, triangles: character.triangles + 0 };
+    if (character.sockets.holsterLeft) character.sockets.holsterLeft.add(buildColt45().group);
+    return { object: character.group, character, gun, triangles: character.triangles };
+  }
+  if (asset === "lineup") {
+    // All 16 in two rows, alphabetical like the roster, each on its own skeleton.
+    const group = new Group();
+    let triangles = 0;
+    Object.values(ROSTER).forEach((spec, i) => {
+      const c = buildCharacter(spec);
+      c.group.position.set((i % 8) * 0.9 - 3.15, 0, i < 8 ? 0 : -1.4);
+      group.add(c.group);
+      triangles += c.triangles;
+    });
+    return { object: group, character: null, gun: null, triangles };
   }
   if (asset === "colt45") {
     const { group, triangles } = buildColt45();
@@ -89,8 +107,8 @@ function collectStats(root: Object3D, triangles: number, gunTris: number): Omit<
   return { triangles: triangles + gunTris, meshes, instanced, materials: [...materials], textures: [...textures], bones: 0 };
 }
 
-function Scene({ asset, view, clip, playing, gunInHand, wireframe, autoRotate, onStats, onClips }: ViewerProps) {
-  const loaded = useMemo(() => load(asset), [asset]);
+function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, autoRotate, onStats, onClips }: ViewerProps) {
+  const loaded = useMemo(() => load(asset, character), [asset, character]);
   const clips = useMemo(() => (loaded.character ? buildClips() : []), [loaded]);
   const mixer = useMemo(() => (loaded.character ? new AnimationMixer(loaded.character.group) : null), [loaded]);
   const action = useRef<AnimationAction | null>(null);
@@ -136,7 +154,9 @@ function Scene({ asset, view, clip, playing, gunInHand, wireframe, autoRotate, o
     const c = loaded.character;
     const gun = loaded.gun;
     if (!c || !gun) return;
-    (gunInHand ? c.sockets.rightHand : c.sockets.holster).add(gun);
+    if (gunInHand) c.sockets.rightHand.add(gun);
+    else if (c.hasHolster) c.sockets.holster.add(gun);
+    else gun.removeFromParent();
   }, [loaded, gunInHand]);
 
   useEffect(() => {

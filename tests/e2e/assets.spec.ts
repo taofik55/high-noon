@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 // Phase 12 step 1: the procedural asset viewer renders every asset without errors and reports its budget.
-test("/dev/assets shows the cowboy, the Colt .45 and the saloon", async ({ page }) => {
+test("/dev/assets shows the characters, the Colt .45 and the saloon", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -17,6 +17,10 @@ test("/dev/assets shows the cowboy, the Colt .45 and the saloon", async ({ page 
     expect(stats?.triangles).toBeGreaterThan(1000);
   }
   await page.getByTestId("asset-cowboy").click();
+  for (const id of ["suzy_lafayette", "el_gringo", "slab_the_killer"]) {
+    await page.getByTestId("character").selectOption(id);
+    await page.waitForTimeout(800);
+  }
   await page.getByTestId("clip").selectOption("Shoot");
   await page.getByTestId("gun-in-hand").check();
   await page.waitForTimeout(1000);

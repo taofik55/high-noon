@@ -45,12 +45,13 @@ export function buildHands(parts: PartList, spec: CharacterSpec): void {
 
     // Fingers: index → little, spaced across the knuckles, each a three-segment curl toward the palm.
     const fingers = [
-      { toward: 0.028, len: [0.042, 0.026, 0.02], r: 0.0095 },
-      { toward: 0.009, len: [0.046, 0.029, 0.021], r: 0.0098 },
-      { toward: -0.01, len: [0.043, 0.027, 0.02], r: 0.0092 },
-      { toward: -0.027, len: [0.034, 0.021, 0.018], r: 0.0082 },
+      { toward: 0.025, len: [0.042, 0.026, 0.02], r: 0.0095 },
+      { toward: 0.008, len: [0.046, 0.029, 0.021], r: 0.0098 },
+      { toward: -0.009, len: [0.043, 0.027, 0.02], r: 0.0092 },
+      { toward: -0.024, len: [0.034, 0.021, 0.018], r: 0.0082 },
     ];
-    const curl = [0.35, 0.65, 0.55];
+    // Relaxed curl, a little more toward the little finger, the way a hand hangs.
+    const curl = [0.5, 0.8, 0.6];
     for (const f of fingers) {
       const pts = [at(0.084, f.toward, 0.0)];
       let dir = d.clone();
