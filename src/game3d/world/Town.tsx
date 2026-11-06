@@ -2,7 +2,12 @@
 
 import { useMemo } from "react";
 import { Sky } from "@react-three/drei";
-import { CanvasTexture, SRGBColorSpace } from "three";
+import { CanvasTexture, SRGBColorSpace, Vector3, type Group } from "three";
+import { buildSaloon } from "../procedural/buildings/saloon";
+import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "../procedural/buildings/town";
+import type { BuiltBuilding } from "../procedural/buildings/kit";
+import { buildCactus, buildRock } from "../procedural/props/props";
+import { placeholdersOnly } from "../assetMode";
 import { BUILDINGS, MESAS, type Building } from "./layout";
 
 const SUN: [number, number, number] = [30, 42, 18];
@@ -58,20 +63,74 @@ function BuildingBox({ b }: { b: Building }) {
   );
 }
 
-function Cactus({ position, scale }: { position: [number, number, number]; scale: number }) {
-  return (
-    <group position={position} scale={scale}>
-      <mesh position={[0, 1.2, 0]} castShadow>
-        <cylinderGeometry args={[0.28, 0.32, 2.4, 10]} />
-        <meshStandardMaterial color="#4f7a3a" roughness={0.9} />
-      </mesh>
-      <mesh position={[0.45, 1.4, 0]} rotation={[0, 0, -0.2]} castShadow>
-        <cylinderGeometry args={[0.16, 0.18, 1.0, 8]} />
-        <meshStandardMaterial color="#4f7a3a" roughness={0.9} />
-      </mesh>
-    </group>
-  );
+/** Procedural buildings by layout id, with the depth of their footprint (front wall at +depth/2). */
+const PROCEDURAL: Record<string, { build: () => BuiltBuilding; depth: number }> = {
+  "building.saloon": { build: buildSaloon, depth: 9 },
+  "building.sheriff": { build: buildSheriff, depth: 6 },
+  "building.bank": { build: buildBank, depth: 8 },
+  "building.store": { build: buildStore, depth: 8 },
+  "building.stable": { build: buildStable, depth: 9 },
+  "building.undertaker": { build: buildUndertaker, depth: 6 },
+  "building.water_tower": { build: buildWaterTower, depth: 0 },
+  "building.stagecoach_stop": { build: buildStagecoachStop, depth: 4 },
+};
+
+// Built once per page: the town never changes and its groups are reused when the table remounts.
+const built = new Map<string, Group | null>();
+function proceduralBuilding(id: string): Group | null {
+  if (placeholdersOnly()) return null;
+  if (!built.has(id)) {
+    try {
+      built.set(id, PROCEDURAL[id]?.build().group ?? null);
+    } catch (e) {
+      console.error(`[town] ${id} falls back to its placeholder`, e);
+      built.set(id, null);
+    }
+  }
+  return built.get(id) ?? null;
 }
+
+/**
+ * A layout building: the procedural model with its front wall where the layout box's front face was (porches
+ * reach toward the square), or the placeholder box if it could not be built (Golden rule 6).
+ */
+function TownBuilding({ b }: { b: Building }) {
+  const group = useMemo(() => proceduralBuilding(b.id), [b.id]);
+  if (!group) return <BuildingBox b={b} />;
+  const depth = PROCEDURAL[b.id]?.depth ?? 0;
+  const back = (b.size[2] - depth) / 2;
+  const offset = new Vector3(0, 0, back).applyAxisAngle(new Vector3(0, 1, 0), b.rotationY);
+  return <primitive object={group} position={[b.position[0] + offset.x, 0, b.position[2] + offset.z]} rotation={[0, b.rotationY, 0]} />;
+}
+
+const cactusCache = new Map<number, Group>();
+const rockCache = new Map<number, Group>();
+
+function Cactus({ position, scale }: { position: [number, number, number]; scale: number }) {
+  const seed = Math.round(position[0] * 7 + position[2] * 3);
+  const g = useMemo(() => {
+    if (!cactusCache.has(seed)) cactusCache.set(seed, buildCactus(seed).group);
+    return cactusCache.get(seed) as Group;
+  }, [seed]);
+  return <primitive object={g} position={position} scale={scale * 1.1} />;
+}
+
+function Rock({ position, scale, seed }: { position: [number, number, number]; scale: number; seed: number }) {
+  const g = useMemo(() => {
+    if (!rockCache.has(seed)) rockCache.set(seed, buildRock(seed, 0.8).group);
+    return rockCache.get(seed) as Group;
+  }, [seed]);
+  return <primitive object={g} position={position} scale={scale} />;
+}
+
+const ROCKS: { position: [number, number, number]; scale: number; seed: number }[] = [
+  { position: [-24, 0, 10], scale: 1.4, seed: 11 },
+  { position: [25, 0, 14], scale: 1.0, seed: 12 },
+  { position: [-30, 0, -10], scale: 1.8, seed: 13 },
+  { position: [30, 0, -4], scale: 1.2, seed: 14 },
+  { position: [14, 0, 27], scale: 0.9, seed: 15 },
+  { position: [-14, 0, 28], scale: 1.1, seed: 16 },
+];
 
 const CACTI: { position: [number, number, number]; scale: number }[] = [
   { position: [-26, 0, 18], scale: 1.1 },
@@ -114,10 +173,13 @@ export function Town({ shadows, shadowMapSize }: { shadows: boolean; shadowMapSi
       </mesh>
 
       {BUILDINGS.map((b) => (
-        <BuildingBox key={b.id} b={b} />
+        <TownBuilding key={b.id} b={b} />
       ))}
       {CACTI.map((c, i) => (
         <Cactus key={i} {...c} />
+      ))}
+      {ROCKS.map((r, i) => (
+        <Rock key={i} {...r} />
       ))}
       {MESAS.map((m, i) => (
         <mesh key={i} position={[m.position[0], m.height / 2, m.position[2]]}>

@@ -3,7 +3,7 @@ import { PartList, triangleCount } from "../core/parts";
 import { extrude, lathe, mat, polygon, roundedRect } from "../core/shapes";
 import { sweep } from "../core/sweep";
 import { isMaterialKey, material } from "../materials";
-import { buildHorse } from "./horse";
+import { buildHorse, type BuiltHorse } from "./horse";
 
 /** Props for seats and scenes (docs/05 §5–6): every one built from shaped geometry, a few draw calls each. */
 
@@ -42,8 +42,8 @@ function rng(seed: number): () => number {
 }
 
 /** A spoked wagon wheel (axis along X): iron tyre, felloe, hub and spokes. */
-function addWheel(parts: PartList, r: number, at: [number, number, number], spokes = 12): void {
-  const m = mat(at, [0, 0, Math.PI / 2]);
+function addWheel(parts: PartList, r: number, at: [number, number, number], spokes = 12, axis: "x" | "z" = "x"): void {
+  const m = mat(at, axis === "x" ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]);
   parts.add(lathe([[r - 0.035, -0.035], [r, -0.035], [r + 0.008, -0.025], [r + 0.008, 0.025], [r, 0.035], [r - 0.035, 0.035]], 28), { material: "wood", color: "#5a3a22", matrix: m });
   parts.add(lathe([[r, -0.03], [r + 0.012, -0.03], [r + 0.012, 0.03], [r, 0.03]], 28), { material: "steel", color: "#2e2a26", matrix: m });
   parts.add(lathe([[0, -0.09], [0.05, -0.09], [0.07, -0.05], [0.08, 0], [0.07, 0.05], [0.05, 0.09], [0, 0.09]], 12), { material: "wood", color: "#4a2e1c", matrix: m });
@@ -79,7 +79,7 @@ export function buildGatlingWagon(): BuiltProp {
 }
 
 /** Concord-style stagecoach with a team of two (Stagecoach / Wells Fargo scenes). Faces +Z. */
-export function buildStagecoach(): BuiltProp {
+export function buildStagecoach(): BuiltProp & { horses: BuiltHorse[] } {
   const p = new PartList({ skinned: false });
   // Body: the rounded side profile with a door window, extruded across the coach.
   const side = new Shape();
@@ -112,13 +112,15 @@ export function buildStagecoach(): BuiltProp {
   }
   p.add(extrude(roundedRect(0.08, 0.08, 0.01), 2.4), { material: "wood", color: "#5a3a22", matrix: mat([0, 0.7, 2.2]) });
   const built = toGroup(p, "prop.stagecoach");
+  const horses: BuiltHorse[] = [];
   for (const sx of [-1, 1]) {
     const horse = buildHorse({ harness: true, coat: sx === 1 ? "#6e4226" : "#3a2418" });
     horse.group.position.set(sx * 0.45, 0, 3.0);
     built.group.add(horse.group);
     built.triangles += horse.triangles;
+    horses.push(horse);
   }
-  return built;
+  return { ...built, horses };
 }
 
 /** A dry tumbleweed: a seeded tangle of thin curved twigs around a hollow ball. */
@@ -203,8 +205,9 @@ export function buildGrave(): BuiltProp {
 /** A plank crate with corner battens (seats show their blue cards on it). Width along X. */
 export function buildCrate(width = 1.3, height = 0.5, depth = 0.95): BuiltProp {
   const p = new PartList({ skinned: false });
-  const board = 0.16;
-  const rows = Math.ceil(height / board);
+  // Whole boards that add up to the crate's height, so the lid sits flush on top.
+  const rows = Math.max(2, Math.round(height / 0.16));
+  const board = height / rows;
   for (let i = 0; i < rows; i++) {
     const y = i * board + board / 2;
     const tint = i % 2 === 0 ? "#8b6a43" : "#957450";
@@ -214,6 +217,29 @@ export function buildCrate(width = 1.3, height = 0.5, depth = 0.95): BuiltProp {
   p.add(extrude(roundedRect(width + 0.02, depth + 0.02, 0.02), 0.03, { size: 0.005, segments: 1 }, 1), { material: "wood", color: "#7a5a38", matrix: mat([0, height + 0.01, 0], [Math.PI / 2, 0, 0]) });
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.add(extrude(roundedRect(0.06, height, 0.01, 0, height / 2), 0.06, { size: 0.006, segments: 1 }, 1), { material: "wood", color: "#5e4228", matrix: mat([sx * (width / 2 - 0.01), 0, sz * (depth / 2 + 0.01)]) });
   return toGroup(p, "prop.crate");
+}
+
+/** Buckboard wagon bed in the middle of the square, holding the deck (top of the bed at y ≈ 1.12). */
+export function buildBuckboard(): BuiltProp {
+  const p = new PartList({ skinned: false });
+  const L = 3.2;
+  const W = 1.8;
+  for (let i = 0; i < 11; i++) {
+    const z = -W / 2 + (i + 0.5) * (W / 11);
+    p.add(extrude(roundedRect(L, W / 11 - 0.01, 0.01), 0.05, { size: 0.006, segments: 1 }, 1), { material: "wood", color: i % 2 ? "#8a6240" : "#7d5532", matrix: mat([0, 1.07, z], [Math.PI / 2, 0, 0]) });
+  }
+  // Low side rails so the cards stay in view, and the frame underneath.
+  for (const sz of [-1, 1]) p.add(extrude(roundedRect(L + 0.1, 0.1, 0.01, 0, 0.05), 0.06, { size: 0.008 }), { material: "wood", color: "#5e4028", matrix: mat([0, 1.09, sz * (W / 2 + 0.03)]) });
+  for (const sx of [-1, 1]) p.add(extrude(roundedRect(W + 0.12, 0.1, 0.01, 0, 0.05), 0.06, { size: 0.008 }), { material: "wood", color: "#5e4028", matrix: mat([sx * (L / 2 + 0.03), 1.09, 0], [0, Math.PI / 2, 0]) });
+  for (const sz of [-0.6, 0.6]) p.add(extrude(roundedRect(0.12, 0.12, 0.01), L - 0.2, undefined, 1), { material: "wood", color: "#4a3020", matrix: mat([0, 0.95, sz], [0, Math.PI / 2, 0]) });
+  for (const x of [-1.2, 1.2]) {
+    p.add(lathe([[0.035, -1.0], [0.035, 1.0], [0, 1.0]], 8), { material: "steel", color: "#2e2a26", matrix: mat([x, 0.5, 0], [Math.PI / 2, 0, 0]) });
+    for (const sz of [-1, 1]) addWheel(p, 0.5, [x, 0.5, sz * 0.98], 12, "z");
+  }
+  // Tongue and a bucket hanging off the side.
+  p.add(extrude(roundedRect(0.08, 0.08, 0.01), 1.6), { material: "wood", color: "#5a3a22", matrix: mat([L / 2 + 0.8, 0.6, 0], [0, Math.PI / 2, -0.25]) });
+  p.add(lathe([[0, 0], [0.13, 0], [0.16, 0.28], [0, 0.28]], 12), { material: "wood", color: "#6a4a2c", matrix: mat([-L / 2 + 0.3, 0.55, W / 2 + 0.2]) });
+  return toGroup(p, "prop.buckboard");
 }
 
 /** Saguaro cactus: a ribbed trunk with two arms. */

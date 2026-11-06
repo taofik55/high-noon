@@ -74,6 +74,19 @@ Use drei `CameraControls` for smooth transitions (`setLookAt(..., true)`), GSAP 
 - Status visuals: Jail = shackles/jail-cell ghost behind them; Dynamite = lit stick on their belt with sparks;
   Mustang = horse tied behind their seat; Scope = spyglass on belt; Barrel = barrel next to them; low life = limping idle.
 
+- Implemented (Phase 12): every seat builds its character from `procedural/character/roster.ts` on the shared
+  22-bone skeleton. `characters/skeletalRig.ts` implements `RigApi` with an `AnimationMixer`: clip names cross-fade to
+  the hand-keyed clips (all 19 Director clips plus Walk and Ride); held clips (Draw, Aim, deaths, SitJail,
+  CoverCrouch, Lasso) keep their last frame until the next view resets the rig; Dodge, Grab and HitReact add a small
+  root motion on the seat's animation group; `moveTo` walks. The gun is the equipped weapon card's model: revolvers
+  sit in the holster and move to the hand during Draw (and for Aim/Shoot); long guns sling across the back. Dead
+  players rest in the last frame of Death_A beside a headstone. Status props (`characters/SeatProps.tsx`): a barred
+  cell for Jail, a barrel, a saddled horse for Mustang, dynamite and a spyglass on the belt. If a character cannot be
+  built, the seat falls back to the placeholder capsule and its tween rig.
+- Town and props: layout buildings are the procedural models with their front wall where the layout box's front
+  was; cacti and boulders are procedural; the deck sits on a buckboard; scene props (Gatling wagon, stagecoach with a
+  galloping team, a rider, tumbleweed, bottle) are procedural and shared, so the VFX layer only removes them.
+
 ## 6. Director (cinematic system)
 `src/game3d/director/` — consumes `GameUpdate`s from the store queue.
 

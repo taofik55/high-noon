@@ -22,8 +22,12 @@ function watchErrors(page: Page): string[] {
   return errors;
 }
 
-async function startGame(page: Page, players = "4") {
-  await page.goto("/play/solo");
+/**
+ * Interaction tests use the primitive placeholders (`?placeholders=1`, Golden rule 6): headless Chromium renders in
+ * software and the procedural town is too slow there. "procedural table" below covers the real models.
+ */
+async function startGame(page: Page, players = "4", url = "/play/solo?placeholders=1") {
+  await page.goto(url);
   await page.evaluate(() => window.localStorage.clear());
   await page.reload();
   // Typing before hydration would be wiped; Start is enabled once React owns the form.
@@ -33,6 +37,8 @@ async function startGame(page: Page, players = "4") {
   await page.getByTestId("setup-difficulty").selectOption("easy");
   await page.getByTestId("setup-start").click();
   await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
+  // Headless Chromium renders in software: without shadow passes the full procedural town stays interactive.
+  await page.getByTestId("quality").selectOption("low");
   await expect.poll(async () => (await handCards(page)).length, { timeout: 60_000 }).toBeGreaterThan(0);
 }
 
@@ -203,5 +209,15 @@ test.describe("/play/solo 3D table", () => {
     await page.getByTestId("setup-resume").click();
     await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId("seat-badge-0")).toContainText("Tester");
+  });
+
+  test("procedural table: real characters, weapons and town render without errors", async ({ page }) => {
+    test.setTimeout(300_000);
+    const errors = watchErrors(page);
+    await startGame(page, "5", "/play/solo");
+    await expect(page.getByTestId("game-table")).toBeVisible();
+    // A few seconds of the idle loop with skinned characters, the town and the buckboard.
+    await page.waitForTimeout(5000);
+    expect(errors.filter((e) => !/THREE\.Clock|GL Driver|instant/.test(e))).toEqual([]);
   });
 });

@@ -4,14 +4,11 @@ import { useEffect, useRef } from "react";
 import { useThree } from "@react-three/fiber";
 import gsap from "gsap";
 import {
-  BoxGeometry,
-  CapsuleGeometry,
-  CylinderGeometry,
+  AnimationMixer,
   Group,
   IcosahedronGeometry,
   Mesh,
   MeshBasicMaterial,
-  MeshStandardMaterial,
   RingGeometry,
   SphereGeometry,
   Vector3,
@@ -23,7 +20,11 @@ import { CARD_GEOMETRY, cardMaterials, disposeCardMaterials } from "../cards/Car
 import { registerVfx } from "../director/registry";
 import type { PropKind, Timeline, VfxApi } from "../director/types";
 import { useUi3D } from "../uiStore";
-import type { Vec3 } from "../world/layout";
+import { buildClips } from "../procedural/character/clips";
+import { buildCharacter } from "../procedural/character/cowboy";
+import { DEFAULT_SPEC } from "../procedural/character/spec";
+import { animateHorse, buildHorse } from "../procedural/props/horse";
+import { buildBottle, buildGatlingWagon, buildStagecoach, buildTumbleweed } from "../procedural/props/props";
 
 // Shared geometries: effects create meshes on demand and remove them when their timeline ends.
 const SPHERE = new SphereGeometry(1, 12, 10);
@@ -35,48 +36,52 @@ function material(color: string, opacity = 1): MeshBasicMaterial {
   return new MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
 }
 
-/** A moving placeholder prop for scenes (docs/05 §11): boxes and capsules, tinted. */
-function buildProp(kind: PropKind): Object3D {
-  const g = new Group();
-  const std = (color: string) => new MeshStandardMaterial({ color, roughness: 0.9 });
-  const box = (size: Vec3, color: string, at: Vec3) => {
-    const m = new Mesh(new BoxGeometry(...size), std(color));
-    m.position.set(...at);
-    m.castShadow = true;
-    g.add(m);
-  };
+/** A rider for Indians!: a saddled horse and a character held in the Ride pose. */
+function buildRider(): { obj: Object3D; tick: (t: number) => void } {
+  const horse = buildHorse({ saddle: true, coat: "#8a5a32" });
+  const rider = buildCharacter(RIDER_SPEC);
+  const mixer = new AnimationMixer(rider.group);
+  const ride = buildClips().find((c) => c.name === "Ride");
+  if (ride) {
+    mixer.clipAction(ride).play();
+    mixer.update(0.01);
+  }
+  rider.group.position.set(0, 0.55, -0.08);
+  horse.group.add(rider.group);
+  return { obj: horse.group, tick: (t) => animateHorse(horse, t, "gallop") };
+}
+
+const RIDER_SPEC = {
+  ...DEFAULT_SPEC,
+  coat: "none" as const,
+  palette: { ...DEFAULT_SPEC.palette, shirt: "#a85a32", vest: "#4a3424", hat: "#3a2a1c", neckerchief: "#2a3a5a" },
+  face: { ...DEFAULT_SPEC.face, mustache: "none" as const },
+};
+
+/**
+ * Scene props (docs/05 §6): procedural models facing +Z, built from shared geometry and materials (so they are only
+ * removed, never disposed). `tick` animates their parts (galloping legs) while they travel.
+ */
+function buildProp(kind: PropKind): { obj: Object3D; tick?: (t: number) => void } {
   switch (kind) {
     case "wagon":
-      box([2.2, 0.8, 1.3], "#6b4a2b", [0, 0.9, 0]);
-      box([0.25, 0.25, 1.4], "#2b2b2b", [0.6, 1.5, 0]); // the gun barrel
-      break;
-    case "stagecoach":
-      box([3, 1.8, 1.6], "#7a2a20", [0, 1.4, 0]);
-      box([1.6, 0.9, 0.5], "#6b4423", [2.4, 1.0, 0]); // horse
-      break;
-    case "rider": {
-      box([1.6, 0.7, 0.5], "#5a4636", [0, 1.1, 0]);
-      const rider = new Mesh(new CapsuleGeometry(0.25, 0.6, 4, 8), std("#6e6258"));
-      rider.position.set(0, 1.9, 0);
-      g.add(rider);
-      break;
+      return { obj: buildGatlingWagon().group };
+    case "stagecoach": {
+      const coach = buildStagecoach();
+      return { obj: coach.group, tick: (t) => coach.horses.forEach((h) => animateHorse(h, t, "gallop")) };
     }
-    case "tumbleweed": {
-      const m = new Mesh(new IcosahedronGeometry(0.45, 1), new MeshStandardMaterial({ color: "#a0814f", wireframe: true }));
-      g.add(m);
-      break;
-    }
-    case "bottle": {
-      const m = new Mesh(new CylinderGeometry(0.07, 0.09, 0.32, 10), std("#3f7a4a"));
-      g.add(m);
-      break;
-    }
+    case "rider":
+      return buildRider();
+    case "tumbleweed":
+      return { obj: buildTumbleweed().group };
+    case "bottle":
+      return { obj: buildBottle().group };
   }
-  return g;
 }
 
 function dispose(obj: Object3D): void {
   obj.removeFromParent();
+  if (obj.userData.shared) return;
   obj.traverse((o) => {
     if (o instanceof Mesh) {
       const mats: Material[] = Array.isArray(o.material) ? o.material : [o.material];
@@ -210,12 +215,16 @@ export function VfxLayer() {
       },
 
       prop(kind, from, to, duration) {
-        const obj = buildProp(kind);
+        const { obj, tick } = buildProp(kind);
+        obj.userData.shared = true;
         obj.position.set(...from);
-        obj.rotation.y = Math.atan2(to[0] - from[0], to[2] - from[2]) - Math.PI / 2;
+        // Procedural props face +Z: turn them toward where they are going.
+        obj.rotation.y = Math.atan2(to[0] - from[0], to[2] - from[2]);
         const tl = gsap.timeline();
+        const clock = { t: 0 };
         tl.to(obj.position, { x: to[0], y: to[1], z: to[2], duration, ease: "sine.inOut" });
-        if (kind === "tumbleweed") tl.to(obj.rotation, { z: -12, duration, ease: "none" }, 0);
+        if (tick) tl.to(clock, { t: duration, duration, ease: "none", onUpdate: () => tick(clock.t) }, 0);
+        if (kind === "tumbleweed") tl.to(obj.rotation, { x: 12, duration, ease: "none" }, 0);
         return spawn(obj, tl);
       },
 

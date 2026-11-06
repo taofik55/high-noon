@@ -19,6 +19,9 @@ import { VfxLayer } from "../vfx/VfxLayer";
 import { SEAT_TINTS, seatPosition, type Vec3 } from "../world/layout";
 import { Seat } from "../world/Seat";
 import { Town } from "../world/Town";
+import { StudioEnvironment } from "../procedural/StudioEnvironment";
+
+const METALS = ["steel", "brass", "glass"] as const;
 
 /** Projects each character's chest to the screen: drop detection for drags, and seat positions for the e2e tests. */
 function SeatProjector({ positions, targets }: { positions: { seat: number; pos: Vec3 }[]; targets: ReadonlySet<number> }) {
@@ -95,6 +98,8 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
     >
       <PerformanceMonitor onDecline={degradeAuto} flipflops={3} />
       <Town shadows={quality.shadows} shadowMapSize={quality.shadowMapSize} />
+      {/* Something for metal to reflect (revolvers, hoops, badges); generated, no HDR download. */}
+      <StudioEnvironment intensity={0.5} only={METALS} />
       <CenterPile deckCount={view.deckCount} discardTop={view.discard.at(-1) ?? null} />
       {view.players.map((p) => (
         <Seat

@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 
 // Phase 12 step 1: the procedural asset viewer renders every asset without errors and reports its budget.
 test("/dev/assets shows the characters, the Colt .45 and the saloon", async ({ page }) => {
-  test.setTimeout(120_000);
+  // The viewer lights everything with the environment map: slow in headless software rendering.
+  test.setTimeout(300_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => {

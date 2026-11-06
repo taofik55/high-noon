@@ -1,6 +1,8 @@
 "use client";
 
+import { useMemo } from "react";
 import type { CardId } from "@/engine";
+import { buildBuckboard } from "../procedural/props/props";
 import { CardMesh, CARD_H, CARD_W } from "./CardMesh";
 
 const THICKNESS = 0.006;
@@ -9,21 +11,11 @@ const TOP = 1.12;
 /** The central wagon with the draw deck (height follows its size) and the face-up discard pile (docs/05 §2). */
 export function CenterPile({ deckCount, discardTop }: { deckCount: number; discardTop: CardId | null }) {
   const stack = Math.max(0.01, deckCount * THICKNESS);
+  const wagon = useMemo(() => buildBuckboard().group, []);
   return (
     <group>
-      {/* Wagon: bed + wheels */}
-      <mesh position={[0, 0.85, 0]} castShadow receiveShadow>
-        <boxGeometry args={[3.2, 0.5, 1.8]} />
-        <meshStandardMaterial color="#7d5532" roughness={0.95} />
-      </mesh>
-      {[-1.2, 1.2].map((x) =>
-        [-0.95, 0.95].map((z) => (
-          <mesh key={`${x}${z}`} position={[x, 0.5, z]} rotation={[Math.PI / 2, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.5, 0.5, 0.1, 18]} />
-            <meshStandardMaterial color="#4a3020" roughness={0.9} />
-          </mesh>
-        )),
-      )}
+      {/* Wagon: a buckboard bed on spoked wheels */}
+      <primitive object={wagon} />
 
       {/* Deck: a block whose height shows how many cards are left, a face-down card on top */}
       {deckCount > 0 && (

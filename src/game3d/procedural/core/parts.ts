@@ -1,5 +1,5 @@
 import { BufferGeometry, Color, Float32BufferAttribute, Matrix4, Uint16BufferAttribute, type ColorRepresentation } from "three";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
+import { mergeGeometries, mergeVertices } from "three/addons/utils/BufferGeometryUtils.js";
 
 /**
  * Collects the parts of one model and merges them into one geometry per material, so a character or a building
@@ -95,8 +95,12 @@ export class PartList {
     }
     const out = new Map<string, BufferGeometry>();
     for (const [material, list] of byMaterial) {
-      const merged = mergeGeometries(list, false);
-      if (!merged) throw new Error(`could not merge parts for material ${material}`);
+      const raw = mergeGeometries(list, false);
+      if (!raw) throw new Error(`could not merge parts for material ${material}`);
+      // Parts are added non-indexed; weld identical vertices back into an indexed mesh so the GPU shades (and skins)
+      // each shared vertex once. Hard edges stay hard: their vertices differ in normal.
+      const merged = mergeVertices(raw, 1e-5);
+      raw.dispose();
       merged.computeBoundingSphere();
       merged.computeBoundingBox();
       out.set(material, merged);

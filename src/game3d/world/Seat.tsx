@@ -1,13 +1,21 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import type { Group, MeshStandardMaterial } from "three";
-import { cardType, equippedWeapon, type PublicPlayer } from "@/engine";
-import { resolveAsset } from "../assets/manifest";
+import type { AnimationClip, Group, MeshStandardMaterial } from "three";
+import { cardType, equippedWeapon, type CardType, type PublicPlayer } from "@/engine";
+import { placeholdersOnly } from "../assetMode";
 import { CardMesh, CARD_W } from "../cards/CardMesh";
 import { PlaceholderCharacter } from "../characters/PlaceholderCharacter";
 import { createRig } from "../characters/rig";
+import { SeatProps } from "../characters/SeatProps";
+import { createSkeletalRig, type SkeletalRig } from "../characters/skeletalRig";
+import { buildClips } from "../procedural/character/clips";
+import { buildCharacter, type BuiltCharacter } from "../procedural/character/cowboy";
+import { ROSTER } from "../procedural/character/roster";
+import { DEFAULT_SPEC } from "../procedural/character/spec";
+import { buildCrate, buildGrave } from "../procedural/props/props";
+import { buildWeapon, LONG_GUNS, WEAPON_IDS, type WeaponId } from "../procedural/weapons";
 import { registerRig } from "../director/registry";
 import type { RigApi } from "../director/types";
 import { useUi3D } from "../uiStore";
@@ -29,28 +37,85 @@ function hasType(p: PublicPlayer, type: string): boolean {
   return p.inPlay.some((id) => cardType(id) === type);
 }
 
+// One set of clips for every character: they all share the skeleton.
+let clipCache: AnimationClip[] | null = null;
+const sharedClips = () => (clipCache ??= buildClips());
+
+const isSkeletal = (r: RigApi | null): r is SkeletalRig => !!r && "update" in r;
+
+const toWeaponId = (w: CardType | null): WeaponId => (w && (WEAPON_IDS as readonly string[]).includes(w) ? (w as WeaponId) : "colt45");
+
+/** The seat's character, built from the roster; null falls back to the placeholder (Golden rule 6). */
+function useCharacter(characterId: PublicPlayer["characterId"]): BuiltCharacter | null {
+  return useMemo(() => {
+    if (placeholdersOnly()) return null;
+    try {
+      return buildCharacter(characterId ? ROSTER[characterId] : DEFAULT_SPEC);
+    } catch (e) {
+      console.error("[character] falling back to the placeholder", e);
+      return null;
+    }
+  }, [characterId]);
+}
+
 /** One seat of the ring (docs/05 §2): character, ground ring, crate with in-play cards. Name plates: hud/SeatBadges. */
 export function Seat({ player, position, tint, isTurn, isActing, targetable, version, onSelect }: SeatProps) {
   const ring = useRef<MeshStandardMaterial>(null);
   const anim = useRef<Group>(null);
   const rig = useRef<RigApi | null>(null);
 
-  // The Director animates this group by clip name (docs/05 §5–6).
+  const character = useCharacter(player.characterId);
+  const alive = useRef(player.alive);
+  useLayoutEffect(() => {
+    alive.current = player.alive;
+  });
+  const weapon = equippedWeapon(player);
+
+  // The Director animates this group by clip name (docs/05 §5–6): through the skeleton when there is a character,
+  // otherwise with the placeholder's procedural tweens.
   useEffect(() => {
     if (!anim.current) return;
-    rig.current = createRig(anim.current);
-    return registerRig(player.seat, rig.current);
-  }, [player.seat]);
+    const r = character ? createSkeletalRig(anim.current, character, sharedClips()) : createRig(anim.current);
+    rig.current = r;
+    if (isSkeletal(r)) {
+      r.setDead(!alive.current);
+      r.reset();
+    }
+    const unregister = registerRig(player.seat, r);
+    return () => {
+      unregister();
+      if (isSkeletal(r)) r.dispose();
+      rig.current = null;
+    };
+  }, [player.seat, character]);
+
+  // The gun follows the equipped weapon card (Colt .45 by default).
+  useEffect(() => {
+    const r = rig.current;
+    if (!isSkeletal(r)) return;
+    const id = toWeaponId(weapon);
+    r.setGun(buildWeapon(id).group, LONG_GUNS.has(id));
+  }, [weapon, character]);
 
   // Scenes are self-contained per update: once the next view is shown, the character is back at its seat pose
   // (before paint, so a death fall never stacks with the static "lying" pose of a dead player).
   useLayoutEffect(() => {
-    rig.current?.reset();
-  }, [version]);
+    const r = rig.current;
+    if (isSkeletal(r)) r.setDead(!player.alive);
+    r?.reset();
+  }, [version, player.alive]);
+
+  useFrame((_, dt) => {
+    const r = rig.current;
+    if (isSkeletal(r)) r.update(dt);
+  });
+
+  const grave = useMemo(() => (player.alive ? null : buildGrave().group), [player.alive]);
+  const crateWidth = Math.max(1.3, Math.round((player.inPlay.length * 0.7 + 0.2) * 10) / 10);
+  const crateProp = useMemo(() => buildCrate(crateWidth).group, [crateWidth]);
   const setHoveredSeat = useUi3D((s) => s.setHoveredSeat);
   const rotationY = facingCenter(position);
   const crate = towardsCenter(position, 1.6);
-  const asset = resolveAsset(`char.${player.characterId ?? "bart_cassidy"}`);
 
   // Valid targets pulse green; the player who must act glows amber.
   useFrame(({ clock }) => {
@@ -90,7 +155,9 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
           <mesh position={[0, 1.1, 0]} visible={false}>
             <cylinderGeometry args={[0.9, 0.9, 2.4, 12]} />
           </mesh>
-          {asset.source === "placeholder" && (
+          {character ? (
+            <primitive object={character.group} />
+          ) : (
             <PlaceholderCharacter
               tint={tint}
               alive={player.alive}
@@ -102,27 +169,24 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
             />
           )}
         </group>
-        {/* The undertaker's work (docs/05 §6.1 ELIMINATED) */}
-        {!player.alive && (
-          <group position={[0.9, 0, -0.6]}>
-            <mesh position={[0, 0.55, 0]} castShadow>
-              <boxGeometry args={[0.55, 1.1, 0.14]} />
-              <meshStandardMaterial color="#8d8a84" roughness={1} />
-            </mesh>
-            <mesh position={[0, 0.06, 0.55]} receiveShadow>
-              <boxGeometry args={[0.7, 0.12, 1.1]} />
-              <meshStandardMaterial color="#7a5a3a" roughness={1} />
-            </mesh>
-          </group>
+        {character && (
+          <SeatProps
+            character={character}
+            alive={player.alive}
+            jailed={hasType(player, "jail")}
+            dynamite={hasType(player, "dynamite")}
+            barrel={hasType(player, "barrel")}
+            mustang={hasType(player, "mustang")}
+            scope={hasType(player, "scope")}
+          />
         )}
+        {/* The undertaker's work (docs/05 §6.1 ELIMINATED) */}
+        {grave && <primitive object={grave} position={[0.9, 0, -0.6]} />}
       </group>
 
       {/* Crate with the in-play blue cards laid on top */}
       <group position={crate} rotation={[0, rotationY, 0]}>
-        <mesh position={[0, 0.25, 0]} castShadow receiveShadow>
-          <boxGeometry args={[Math.max(1.3, player.inPlay.length * 0.7 + 0.2), 0.5, 0.95]} />
-          <meshStandardMaterial color="#8b6a43" roughness={0.95} />
-        </mesh>
+        <primitive object={crateProp} />
         {player.inPlay.map((id, i) => (
           <CardMesh
             key={id}
