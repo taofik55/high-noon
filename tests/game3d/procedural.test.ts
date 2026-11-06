@@ -1,0 +1,104 @@
+import { describe, expect, it } from "vitest";
+import { SkinnedMesh, Vector3, type BufferGeometry, type Mesh } from "three";
+import { buildCharacter, characterGeometry } from "@/game3d/procedural/character/cowboy";
+import { buildClips } from "@/game3d/procedural/character/clips";
+import { BONE_NAMES } from "@/game3d/procedural/character/skeleton";
+import { DEFAULT_SPEC } from "@/game3d/procedural/character/spec";
+import { sweep } from "@/game3d/procedural/core/sweep";
+import { buildColt45 } from "@/game3d/procedural/weapons/colt45";
+import { buildSaloon } from "@/game3d/procedural/buildings/saloon";
+
+function finite(g: BufferGeometry): boolean {
+  const a = g.getAttribute("position").array as ArrayLike<number>;
+  for (let i = 0; i < a.length; i++) if (!Number.isFinite(a[i] as number)) return false;
+  return true;
+}
+
+describe("procedural core", () => {
+  it("sweeps produce outward-facing normals", () => {
+    const { geometry } = sweep({
+      path: [new Vector3(0, 0, 0), new Vector3(0, 1, 0)],
+      rings: [
+        { w: 0.5, f: 0.5, b: 0.5 },
+        { w: 0.5, f: 0.5, b: 0.5 },
+      ],
+      front: new Vector3(0, 0, 1),
+      radial: 12,
+    });
+    const pos = geometry.getAttribute("position");
+    const nrm = geometry.getAttribute("normal");
+    for (let i = 0; i < pos.count; i++) {
+      const out = new Vector3(pos.getX(i), 0, pos.getZ(i)).normalize();
+      expect(out.dot(new Vector3(nrm.getX(i), 0, nrm.getZ(i)))).toBeGreaterThan(0.5);
+    }
+  });
+});
+
+describe("master cowboy", () => {
+  const c = buildCharacter();
+
+  it("stays within 25,000 triangles and a handful of draw calls", () => {
+    console.log(`[budget] cowboy ${c.triangles} tris, ${characterGeometry(DEFAULT_SPEC).size} materials`);
+    expect(c.triangles).toBeLessThanOrEqual(25_000);
+    expect(characterGeometry(DEFAULT_SPEC).size).toBeLessThanOrEqual(9);
+  });
+
+  it("is valid skinned geometry on the shared skeleton", () => {
+    expect(c.skeleton.bones.map((b) => b.name)).toEqual([...BONE_NAMES]);
+    const meshes = c.group.children.filter((o): o is SkinnedMesh => (o as SkinnedMesh).isSkinnedMesh);
+    expect(meshes.length).toBeGreaterThan(3);
+    for (const m of meshes) {
+      expect(m.skeleton).toBe(c.skeleton);
+      const g = m.geometry;
+      expect(finite(g)).toBe(true);
+      const idx = g.getAttribute("skinIndex");
+      const w = g.getAttribute("skinWeight");
+      for (let v = 0; v < w.count; v++) {
+        const sum = w.getX(v) + w.getY(v) + w.getZ(v) + w.getW(v);
+        expect(Math.abs(sum - 1)).toBeLessThan(1e-4);
+        expect(idx.getX(v)).toBeLessThan(BONE_NAMES.length);
+      }
+    }
+  });
+
+  it("stands on the ground at a believable height", () => {
+    const box = { min: Infinity, max: -Infinity };
+    for (const g of characterGeometry(DEFAULT_SPEC).values()) {
+      g.computeBoundingBox();
+      box.min = Math.min(box.min, g.boundingBox?.min.y ?? 0);
+      box.max = Math.max(box.max, g.boundingBox?.max.y ?? 0);
+    }
+    expect(box.min).toBeGreaterThan(-0.01);
+    expect(box.min).toBeLessThan(0.02);
+    expect(box.max).toBeGreaterThan(1.85); // hat
+    expect(box.max).toBeLessThan(2.0);
+  });
+
+  it("animates only bones that exist", () => {
+    const names = new Set<string>(BONE_NAMES);
+    for (const clip of buildClips()) {
+      for (const t of clip.tracks) expect(names.has(t.name.split(".")[0] as string), `${clip.name}: ${t.name}`).toBe(true);
+    }
+  });
+});
+
+describe("colt .45 and saloon", () => {
+  it("revolver is a detailed but light separate model", () => {
+    const { group, triangles } = buildColt45();
+    console.log(`[budget] colt45 ${triangles} tris, ${group.children.length} meshes`);
+    expect(triangles).toBeGreaterThan(1500);
+    expect(triangles).toBeLessThan(8000);
+    for (const m of group.children) expect(finite((m as Mesh).geometry)).toBe(true);
+  });
+
+  it("saloon is a few draw calls thanks to instancing and merging", () => {
+    const { group, triangles, drawCalls } = buildSaloon();
+    console.log(`[budget] saloon ${triangles} tris, ${drawCalls} draw calls`);
+    expect(drawCalls).toBeLessThanOrEqual(16);
+    expect(triangles).toBeLessThan(120_000);
+    group.traverse((o) => {
+      const g = (o as Mesh).geometry;
+      if (g) expect(finite(g)).toBe(true);
+    });
+  });
+});

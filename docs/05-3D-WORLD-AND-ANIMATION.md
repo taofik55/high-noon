@@ -6,6 +6,14 @@
 - Palette: sun-bleached wood, rust, sand, deep sky blue, saloon amber. UI: aged paper, brass, leather.
 - Readability over realism: in "table view" every player, their life and their cards must be readable at a glance.
 
+- **Decision (Phase 12): every 3D asset is procedural three.js** (no Mixamo, Blender, AI generators or downloaded
+  models). Direction refined to a **stylized low-poly Western diorama**: custom BufferGeometry sweeps (superellipse
+  rings along paths) for anatomy and clothing, Extrude/Lathe/Shape geometry with bevels for hard surfaces, vertex
+  colours on a few shared `MeshStandardMaterial`s, faint procedural canvas grain, and a procedural environment map
+  (RoomEnvironment) so metals read. Code: `src/game3d/procedural/` (core builders, character on one shared 22-bone
+  skeleton with hand-keyed clips, weapons, buildings), inspected at `/dev/assets`. Budgets: character ≤ 25k
+  triangles in ~7 draw calls; buildings ~a dozen draw calls via InstancedMesh for boards/balusters/brackets.
+
 ## 2. The stage: town square of High Noon
 ```
                  [ Saloon ]        [ Sheriff's Office + Jail ]

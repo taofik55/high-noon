@@ -3,6 +3,11 @@
 The code never depends on a specific asset existing: `src/game3d/assets/manifest.ts` lists every asset id with its path,
 license and a placeholder fallback. Real files are dropped into `public/assets/` and the manifest updated.
 
+> **Decision (Phase 12): all 3D assets are generated in code** (`src/game3d/procedural/`, docs/05 §1), so the
+> sourcing and Blender/Mixamo pipeline below is no longer used for models and animations. Kept for reference (audio,
+> optional imports later). The manifest/placeholder mechanism still applies. Workflow agreed with the owner: master
+> cowboy, Colt .45 and saloon first, reviewed in `/dev/assets`, then the remaining assets.
+
 ## 1. Sources (check each license; keep `CREDITS.md` up to date)
 | Need | Good sources | License notes |
 |---|---|---|
