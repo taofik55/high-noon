@@ -10,6 +10,7 @@ import { CenterPile } from "../cards/CenterPile";
 import { HandFan } from "../hand/HandFan";
 import { BadgeTracker } from "../hud/BadgeTracker";
 import { PerfProbe } from "../perf/PerfProbe";
+import { setSceneMounted } from "../streaming/buildQueue";
 import { AutoQuality } from "./AutoQuality";
 import { PostFX } from "./PostFX";
 import { AmbientDust } from "../vfx/AmbientDust";
@@ -66,6 +67,15 @@ function SeatProjector({ positions, targets }: { positions: { seat: number; pos:
       }),
     [camera, gl],
   );
+  return null;
+}
+
+/** Last child of the Canvas: by the time its effect runs, every seat and the town have queued their builds. */
+function SceneMounted() {
+  useEffect(() => {
+    setSceneMounted(true);
+    return () => setSceneMounted(false);
+  }, []);
   return null;
 }
 
@@ -128,6 +138,7 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
       <HandFan ti={ti} renderPriority={quality.post ? 2 : 1} />
       <BadgeTracker positions={positions} />
       <SeatProjector positions={positions} targets={targets} />
+      <SceneMounted />
     </Canvas>
   );
 }

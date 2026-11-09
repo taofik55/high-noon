@@ -165,11 +165,43 @@ interface Sequence {
 `auto` picks via drei `PerformanceMonitor` / `AdaptiveDpr`, steps down when fps < 50 for 3 s.
 Mobile forces `low` and uses tap-to-select instead of drag.
 
+**As built (Phase 13)** — `src/game3d/settings/quality.ts` (`QUALITY_CONFIG`), `scene/PostFX.tsx`:
+- Tone mapping is ACES everywhere (renderer without a composer, `ToneMapping` pass with one), so presets differ in
+  effects, not in colour. Bloom uses `luminanceThreshold 1`: only HDR effects (muzzle flash, tracer, fireball, which
+  render above 1.0 with `toneMapped: false`) glow, never the sunlit town. Composer MSAA is 4 on every preset (8 made
+  SSAO edges speckle). DoF focuses on the CameraControls target and is only on during CINEMATIC shots.
+- The hand HUD (drei `Hud`) renders at priority 2 after the composer (priority 1); HUD cards are not tone mapped.
+- `auto` uses our own governor (`governorStep`, pure and unit-tested) instead of `PerformanceMonitor`: one level down
+  after 3 s under 50 fps, frames > 0.5 s ignored (hidden tab, builds), 2 s settle after each change. No AdaptiveDpr.
+- LOD bias = `lodDistance`: characters farther than it use LOD1 (low: always; medium 13 m, high 16 m, ultra 24 m,
+  1.5 m hysteresis). The low preset also builds the town at half curve detail (`townDetail`).
+- Low has blob shadows (a soft disc under each character); particles are ambient dust motes / blown sand as one
+  `Points` draw call (700 × preset share).
+
 ## 9. Performance budget (High preset, mid-range desktop GPU)
 - 60 fps target in TABLE view, ≥ 45 fps in heavy cinematics.
 - ≤ 400 draw calls in TABLE view (instancing for props, merged static town geometry).
 - Characters: ≤ 25k tris each (LOD1 ~8k), textures ≤ 2K, shared material where possible.
 - Initial download ≤ 25 MB to first playable (placeholders + town LOD); remaining assets stream in.
+
+**As built (Phase 13):**
+- Dev overlay: `?perf=1` (any build) or the "perf" checkbox (dev): fps, draw calls, triangles, geometries, textures,
+  programs, counted per frame across all passes (`perf/PerfProbe.tsx`). `tests/e2e/perf.spec.ts` asserts ≤ 400 draw
+  calls at every preset with 7 players.
+- Static batching (`procedural/core/batch.ts`): the whole town (buildings, cacti, rocks, instances included) is baked
+  into one mesh per shared material; signs keep their own canvas materials.
+- Character LOD: `withDetail(scale, build)` scales every sweep/lathe/extrude segment count, so LOD1 is the same model
+  with coarser curves (~6.5–7.5k tris, same skeleton, materials and skinning). Both levels bind to one skeleton.
+- Cards draw in three groups (edges, front, back) instead of the box's six.
+- Streaming: nothing is downloaded (all procedural), so "streaming" means building in a queue
+  (`streaming/buildQueue.ts`): town and characters first (essential, behind the loading screen; placeholders stand in
+  until each is built), then the card illustrations of visible cards, then every other card type in the background
+  (a corner note shows progress; faces are drawn with a plain panel first and redrawn when their art is ready). The
+  Director waits for the essentials before staging anything (`essentialsReady`, 90 s safety timeout).
+- Measured (7 players, TABLE view, headless Chromium, draw calls / triangles), before → after Phase 13:
+  low 177 / 369k → ~140 / 233k; medium 326 / 772k → ~240 / 640k; high 332 / 772k → ~350 / 1.05M (now with SSAO's
+  normal pass and the other post passes, which did not exist before); ultra 338 / 772k → ~355 / 1.2M.
+  Headless fps is meaningless (software rendering); measure on a real GPU with `?perf=1`.
 
 ## 10. Audio
 - Music: ambient western guitar loop in lobby/table, tension stinger on duel, saloon piano, victory theme.

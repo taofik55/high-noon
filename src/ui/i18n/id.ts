@@ -112,6 +112,10 @@ export const id: Partial<Record<MessageKey, string>> = {
 
   "solo.title": "Main solo",
   "solo.loading": "Memuat kota…",
+  "loading.town": "Membangun kota…",
+  "loading.characters": "Para koboi bersiap…",
+  "loading.cards": "Melukis kartu…",
+  "loading.background": "Melukis kartu {done}/{total}",
   "solo.quality": "Grafis",
   "solo.quality.auto": "Otomatis",
   "solo.quality.low": "Rendah",

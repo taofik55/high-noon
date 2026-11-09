@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sky } from "@react-three/drei";
 import { CanvasTexture, Group, SRGBColorSpace, Vector3 } from "three";
 import { buildSaloon } from "../procedural/buildings/saloon";
@@ -9,6 +9,7 @@ import type { BuiltBuilding } from "../procedural/buildings/kit";
 import { buildCactus, buildRock } from "../procedural/props/props";
 import { bakeStatic } from "../procedural/core/batch";
 import { withDetail } from "../procedural/core/detail";
+import { enqueue, PRIORITY } from "../streaming/buildQueue";
 import { placeholdersOnly } from "../assetMode";
 import { BUILDINGS, MESAS, type Building } from "./layout";
 
@@ -169,7 +170,18 @@ const CACTI: { position: [number, number, number]; scale: number }[] = [
 
 /** The placeholder town square at high noon / golden hour (docs/05 §1–2, §7). */
 export function Town({ shadows, shadowMapSize, detail = 1 }: { shadows: boolean; shadowMapSize: number; detail?: number }) {
-  const town = useMemo(() => proceduralTown(detail), [detail]);
+  // Placeholder boxes until the build queue has made the procedural town (instant when it is already built).
+  const [town, setTown] = useState<TownBatch | null>(() => townBatches.get(detail) ?? null);
+  useEffect(() => {
+    if (placeholdersOnly()) return;
+    let alive = true;
+    void enqueue(`town:${detail}`, "town", PRIORITY.essential, () => proceduralTown(detail)).then((t) => {
+      if (alive) setTown(t);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [detail]);
   return (
     <>
       <Sky sunPosition={SUN} turbidity={6} rayleigh={1.2} mieCoefficient={0.006} mieDirectionalG={0.85} />

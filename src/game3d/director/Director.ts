@@ -5,6 +5,7 @@ import type { PlayerView, Seat } from "@/engine";
 import type { GameUpdate } from "@/net";
 import type { PresentInfo, Presenter } from "@/ui/store/gameStore";
 import { seatPosition, towardsCenter, type Vec3 } from "../world/layout";
+import { essentialsReady } from "../streaming/buildQueue";
 import { planSequences } from "./planner";
 import { getCamera, getRig, getVfx } from "./registry";
 import { buildStep } from "./sequences";
@@ -50,6 +51,8 @@ export class Director implements Presenter {
 
   async present(update: GameUpdate, info: PresentInfo): Promise<void> {
     if (info.instant) return;
+    // Nothing is staged behind the loading screen: the first scenes wait for the town and the characters.
+    await essentialsReady();
     const { mode, speed } = this.settings();
     const actor = update.actor;
     if (actor !== null && actor !== info.mySeat) {

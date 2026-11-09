@@ -4,6 +4,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { useStore } from "zustand";
 import type { StoreApi } from "zustand/vanilla";
+import { placeholdersOnly } from "@/game3d/assetMode";
+import { prefetchCardArt } from "@/game3d/cards/cardTexture";
 import { Director } from "@/game3d/director/Director";
 import type { CinematicMode } from "@/game3d/director/types";
 import { QUALITIES, type QualitySetting } from "@/game3d/settings/quality";
@@ -20,12 +22,13 @@ import { Button } from "../table/Button";
 import { GameLog } from "../table/GameLog";
 import { PromptPanel } from "../table/PromptPanel";
 import { useTableInteraction } from "../table/useTableInteraction";
+import { LoadingCurtain, StreamingNote } from "./LoadingScreen";
 import { SoundMenu } from "./SoundMenu";
 
 // three.js must never render on the server.
 const GameCanvas = dynamic(() => import("@/game3d/scene/GameCanvas").then((m) => m.GameCanvas), {
   ssr: false,
-  loading: () => <div className="flex h-full items-center justify-center text-amber-200">{t("solo.loading")}</div>,
+  loading: () => <LoadingCurtain indeterminate />,
 });
 
 interface GameTable3DProps {
@@ -76,6 +79,11 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
       useUi3D.getState().setCinematic(false);
     };
   }, [store]);
+
+  // Card illustrations stream in behind the game once the essentials are up (placeholder mode draws none).
+  useEffect(() => {
+    if (!placeholdersOnly()) prefetchCardArt();
+  }, []);
 
   // Space = skip (docs/05 §6), unless the player is typing in a form field.
   useEffect(() => {
@@ -209,6 +217,8 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
       )}
 
       {showPerf && <PerfOverlay />}
+      <StreamingNote />
+      <LoadingCurtain />
 
       {overlay}
 

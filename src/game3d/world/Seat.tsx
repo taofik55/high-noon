@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { CanvasTexture, MeshBasicMaterial, PlaneGeometry, Vector3, type AnimationClip, type Group, type MeshStandardMaterial } from "three";
 import { cardType, equippedWeapon, type CardType, type PublicPlayer } from "@/engine";
@@ -20,6 +20,7 @@ import { registerRig } from "../director/registry";
 import { pickLod, QUALITY_CONFIG, resolveQuality } from "../settings/quality";
 import { useSettings } from "../settings/settingsStore";
 import type { RigApi } from "../director/types";
+import { enqueue, PRIORITY } from "../streaming/buildQueue";
 import { useUi3D } from "../uiStore";
 import { facingCenter, towardsCenter, type Vec3 } from "./layout";
 
@@ -67,17 +68,36 @@ function blobShadow(): typeof blob {
 
 const toWeaponId = (w: CardType | null): WeaponId => (w && (WEAPON_IDS as readonly string[]).includes(w) ? (w as WeaponId) : "colt45");
 
-/** The seat's character, built from the roster; null falls back to the placeholder (Golden rule 6). */
-function useCharacter(characterId: PublicPlayer["characterId"]): BuiltCharacter | null {
-  return useMemo(() => {
-    if (placeholdersOnly()) return null;
-    try {
-      return buildCharacter(characterId ? ROSTER[characterId] : DEFAULT_SPEC);
-    } catch (e) {
-      console.error("[character] falling back to the placeholder", e);
-      return null;
-    }
-  }, [characterId]);
+let buildSeq = 0;
+
+function build(characterId: PublicPlayer["characterId"]): BuiltCharacter | null {
+  try {
+    return buildCharacter(characterId ? ROSTER[characterId] : DEFAULT_SPEC);
+  } catch (e) {
+    console.error("[character] falling back to the placeholder", e);
+    return null;
+  }
+}
+
+/**
+ * The seat's character, built from the roster through the build queue (the placeholder stands in meanwhile); null
+ * keeps the placeholder (Golden rule 6). Each seat gets its own instance: every character needs its own skeleton.
+ */
+function useCharacter(seat: number, characterId: PublicPlayer["characterId"]): BuiltCharacter | null {
+  const [built, setBuilt] = useState<{ key: string; character: BuiltCharacter | null } | null>(null);
+  const key = `${seat}:${characterId ?? "default"}`;
+  useEffect(() => {
+    if (placeholdersOnly()) return;
+    let alive = true;
+    // Unique per mount: a remounted seat must not reuse a character still attached to the old scene graph.
+    void enqueue(`character:${key}:${++buildSeq}`, "characters", PRIORITY.essential, () => build(characterId)).then((character) => {
+      if (alive) setBuilt({ key, character });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [key, characterId]);
+  return built?.key === key ? built.character : null;
 }
 
 /** One seat of the ring (docs/05 §2): character, ground ring, crate with in-play cards. Name plates: hud/SeatBadges. */
@@ -86,7 +106,7 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
   const anim = useRef<Group>(null);
   const rig = useRef<RigApi | null>(null);
 
-  const character = useCharacter(player.characterId);
+  const character = useCharacter(player.seat, player.characterId);
   const alive = useRef(player.alive);
   useLayoutEffect(() => {
     alive.current = player.alive;

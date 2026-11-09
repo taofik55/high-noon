@@ -111,6 +111,10 @@ export const en = {
 
   "solo.title": "Solo game",
   "solo.loading": "Loading the town…",
+  "loading.town": "Building the town…",
+  "loading.characters": "The cowboys get ready…",
+  "loading.cards": "Painting the cards…",
+  "loading.background": "Painting cards {done}/{total}",
   "solo.quality": "Graphics",
   "solo.quality.auto": "Auto",
   "solo.quality.low": "Low",

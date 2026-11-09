@@ -236,6 +236,8 @@ test.describe("/play/solo 3D table", () => {
     const errors = watchErrors(page);
     await startGame(page, "5", "/play/solo");
     await expect(page.getByTestId("game-table")).toBeVisible();
+    // The town and the characters stream in behind the loading screen, which then lifts.
+    await expect(page.getByTestId("loading-screen")).toHaveCount(0, { timeout: 180_000 });
     // A few seconds of the idle loop with skinned characters, the town and the buckboard.
     await page.waitForTimeout(5000);
     expect(errors.filter((e) => !/THREE\.Clock|GL Driver|instant/.test(e))).toEqual([]);

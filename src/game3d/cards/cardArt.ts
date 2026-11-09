@@ -330,6 +330,11 @@ function engrave(ctx: CanvasRenderingContext2D): void {
   ctx.restore();
 }
 
+/** The cached illustration: undefined while it has not been made yet (see cardArt). */
+export function peekCardArt(type: CardType): HTMLCanvasElement | null | undefined {
+  return cache.get(type);
+}
+
 /** The illustration for a card type (cached), or null where WebGL is unavailable (tests, old browsers). */
 export function cardArt(type: CardType): HTMLCanvasElement | null {
   if (cache.has(type)) return cache.get(type) ?? null;

@@ -4,7 +4,9 @@ import { CanvasTexture, SRGBColorSpace } from "three";
 import type { CardId } from "@/engine";
 import { GAME_TITLE } from "@/config/game";
 import { cardType, type CardType } from "@/engine";
-import { ART_H, ART_W, cardArt } from "./cardArt";
+import { ALL_CARDS } from "@/engine";
+import { enqueue, PRIORITY } from "../streaming/buildQueue";
+import { ART_H, ART_W, cardArt, peekCardArt } from "./cardArt";
 import { cardFace, type CardFace } from "./cardFace";
 
 // Card faces (docs/07 §2.5): corner index, title band, an engraved illustration of the card's scene (cardArt.ts),
@@ -52,7 +54,7 @@ function makeTexture(draw: (ctx: CanvasRenderingContext2D) => void): CanvasTextu
   return texture;
 }
 
-function drawFace(ctx: CanvasRenderingContext2D, face: CardFace, type: CardType): void {
+function drawFace(ctx: CanvasRenderingContext2D, face: CardFace, art: HTMLCanvasElement | null): void {
   ctx.clearRect(0, 0, W, H);
   const ink = face.family === "blue" ? "#2f5d8a" : "#7a4a22";
   roundedRect(ctx, 4, 4, W - 8, H - 8, RADIUS);
@@ -82,7 +84,6 @@ function drawFace(ctx: CanvasRenderingContext2D, face: CardFace, type: CardType)
   // Illustration panel with a thin frame (a plain panel if no art could be made).
   const ax = (W - ART_W) / 2;
   const ay = 206;
-  const art = cardArt(type);
   if (art) ctx.drawImage(art, ax, ay, ART_W, ART_H);
   else {
     ctx.fillStyle = face.family === "blue" ? "#cdd9e6" : "#e4cfa6";
@@ -154,13 +155,38 @@ function drawBack(ctx: CanvasRenderingContext2D): void {
   ctx.fillText(GAME_TITLE.toUpperCase(), W / 2, H - 120, W - 100);
 }
 
-export function cardFaceTexture(id: CardId): CanvasTexture {
+/**
+ * The face texture of a card. Illustrations are expensive (an offscreen 3D render each), so a face whose art is not
+ * made yet is drawn with a plain panel first and redrawn once the build queue has made the art.
+ */
+export function cardFaceTexture(id: CardId, priority: number = PRIORITY.visible): CanvasTexture {
   let texture = cache.get(id);
   if (!texture) {
-    texture = makeTexture((ctx) => drawFace(ctx, cardFace(id), cardType(id)));
+    const type = cardType(id);
+    const art = peekCardArt(type);
+    const t = makeTexture((ctx) => drawFace(ctx, cardFace(id), art ?? null));
+    if (art === undefined) {
+      void enqueue(`art:${type}`, "cards", priority, () => cardArt(type)).then((made) => {
+        const ctx = (t.image as HTMLCanvasElement).getContext("2d");
+        if (!made || !ctx) return;
+        drawFace(ctx, cardFace(id), made);
+        t.needsUpdate = true;
+      });
+    }
+    texture = t;
     cache.set(id, texture);
   }
   return texture;
+}
+
+/** Queues every card type's illustration behind the game (background streaming). */
+export function prefetchCardArt(): void {
+  const seen = new Set<CardType>();
+  for (const c of ALL_CARDS) {
+    if (seen.has(c.type) || peekCardArt(c.type) !== undefined) continue;
+    seen.add(c.type);
+    void enqueue(`art:${c.type}`, "cards", PRIORITY.prefetch, () => cardArt(c.type));
+  }
 }
 
 export function cardBackTexture(): CanvasTexture {

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ALL_CARDS, type CardId } from "@/engine";
+import { ALL_CARDS, cardType, type CardId } from "@/engine";
+import { cardArt } from "./cardArt";
 import { cardBackTexture, cardFaceTexture } from "./cardTexture";
 
 /** /dev/cards: one card of every type plus the back, as they are textured on the 3D cards. Developer tool. */
@@ -22,6 +23,8 @@ export function CardGallery() {
     const step = () => {
       const next = queue.shift();
       if (!next || !alive) return;
+      // Make the art first, so the face is drawn complete rather than streamed in.
+      if (next !== "back") cardArt(cardType(next));
       const tex = next === "back" ? cardBackTexture() : cardFaceTexture(next);
       const canvas = tex.image as HTMLCanvasElement;
       setFaces((f) => [...f, { key: next, src: canvas.toDataURL() }]);
