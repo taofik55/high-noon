@@ -71,7 +71,7 @@ function HandCard({ cardId, slot, index, state, hidden, onPress, onDouble }: Han
  * The player's hand as a fan of 3D cards in an overlay scene (docs/05 §4): hover lifts and enlarges, illegal cards
  * are dimmed, click selects (then click a glowing player), or drag onto a player / up onto the table.
  */
-export function HandFan({ ti }: { ti: TableInteraction }) {
+export function HandFan({ ti, renderPriority = 1 }: { ti: TableInteraction; renderPriority?: number }) {
   const size = useThree((s) => s.size);
   const gl = useThree((s) => s.gl);
   const drag = useUi3D((s) => s.drag);
@@ -149,7 +149,7 @@ export function HandFan({ ti }: { ti: TableInteraction }) {
   );
 
   return (
-    <Hud renderPriority={1}>
+    <Hud renderPriority={renderPriority}>
       <OrthographicCamera makeDefault position={[0, 0, 200]} near={0.1} far={1000} />
       {hand.map((id, i) => (
         <HandCard

@@ -10,13 +10,26 @@ import { cardBackTexture, cardFaceTexture } from "./cardTexture";
 export const CARD_W = 0.63;
 export const CARD_H = 0.88;
 
-/** One geometry shared by every card (docs/05 §4). Box faces: +z = front, −z = back. */
-export const CARD_GEOMETRY = new BoxGeometry(CARD_W, CARD_H, 0.008);
+/**
+ * One geometry shared by every card (docs/05 §4): a thin box whose four edges form one material group, then the
+ * front (+z) and the back (−z). Three draw calls per card instead of the box's six.
+ */
+export const CARD_GEOMETRY = cardGeometry();
+
+function cardGeometry(): BoxGeometry {
+  const g = new BoxGeometry(CARD_W, CARD_H, 0.008);
+  // BoxGeometry lays its faces out in order +x, −x, +y, −y, +z, −z, six indices each.
+  g.clearGroups();
+  g.addGroup(0, 24, 0);
+  g.addGroup(24, 6, 1);
+  g.addGroup(30, 6, 2);
+  return g;
+}
 const edge = new MeshStandardMaterial({ color: "#e9dcc0", roughness: 0.9 });
 
 /**
- * Materials for one card: four shared edge faces, then front and back. Only the last two are per card; dispose them
- * with disposeCardMaterials (textures are cached and shared).
+ * Materials for one card: the shared edge material, then front and back. Only the last two are per card; dispose
+ * them with disposeCardMaterials (textures are cached and shared).
  */
 export function cardMaterials(cardId: CardId | null, opts: { unlit?: boolean; dimmed?: boolean } = {}): Material[] {
   const front = cardId ? cardFaceTexture(cardId) : cardBackTexture();
@@ -24,13 +37,14 @@ export function cardMaterials(cardId: CardId | null, opts: { unlit?: boolean; di
   const color = opts.dimmed ? "#777777" : "#ffffff";
   const make = (map: typeof front) =>
     opts.unlit
-      ? new MeshBasicMaterial({ map, color, transparent: true, alphaTest: 0.5 })
+      ? // HUD cards show their texture as drawn, whether or not a post-processing composer owns tone mapping.
+        new MeshBasicMaterial({ map, color, transparent: true, alphaTest: 0.5, toneMapped: false })
       : new MeshStandardMaterial({ map, color, roughness: 0.75, transparent: true, alphaTest: 0.5 });
-  return [edge, edge, edge, edge, make(front), make(back)];
+  return [edge, make(front), make(back)];
 }
 
 export function disposeCardMaterials(materials: Material[]): void {
-  materials.slice(4).forEach((m) => m.dispose());
+  materials.slice(1).forEach((m) => m.dispose());
 }
 
 type CardMeshProps = Omit<ThreeElements["mesh"], "geometry" | "material"> & {

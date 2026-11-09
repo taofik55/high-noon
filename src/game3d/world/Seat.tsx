@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import { Vector3, type AnimationClip, type Group, type MeshStandardMaterial } from "three";
+import { CanvasTexture, MeshBasicMaterial, PlaneGeometry, Vector3, type AnimationClip, type Group, type MeshStandardMaterial } from "three";
 import { cardType, equippedWeapon, type CardType, type PublicPlayer } from "@/engine";
 import { placeholdersOnly } from "../assetMode";
 import { CardMesh, CARD_W } from "../cards/CardMesh";
@@ -44,6 +44,26 @@ let clipCache: AnimationClip[] | null = null;
 const sharedClips = () => (clipCache ??= buildClips());
 
 const isSkeletal = (r: RigApi | null): r is SkeletalRig => !!r && "update" in r;
+
+/** Blob shadow for the low preset (docs/05 §8): a soft dark disc under each character, shared by every seat. */
+let blob: { geometry: PlaneGeometry; material: MeshBasicMaterial } | null = null;
+function blobShadow(): typeof blob {
+  if (blob || typeof document === "undefined") return blob;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d");
+  if (!ctx) return null;
+  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 32);
+  g.addColorStop(0, "rgba(40,24,10,0.55)");
+  g.addColorStop(1, "rgba(40,24,10,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  blob = {
+    geometry: new PlaneGeometry(1.3, 1.3).rotateX(-Math.PI / 2),
+    material: new MeshBasicMaterial({ map: new CanvasTexture(c), transparent: true, depthWrite: false }),
+  };
+  return blob;
+}
 
 const toWeaponId = (w: CardType | null): WeaponId => (w && (WEAPON_IDS as readonly string[]).includes(w) ? (w as WeaponId) : "colt45");
 
@@ -108,6 +128,8 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
   }, [version, player.alive]);
 
   const lodDistance = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel)].lodDistance);
+  const realShadows = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel)].shadows);
+  const blobParts = realShadows ? null : blobShadow();
   const worldPos = useRef(new Vector3());
   useFrame(({ camera }, dt) => {
     const r = rig.current;
@@ -165,6 +187,7 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
           <mesh position={[0, 1.1, 0]} visible={false}>
             <cylinderGeometry args={[0.9, 0.9, 2.4, 12]} />
           </mesh>
+          {blobParts && <mesh geometry={blobParts.geometry} material={blobParts.material} position={[0, 0.03, 0]} raycast={() => null} />}
           {character ? (
             <primitive object={character.group} />
           ) : (

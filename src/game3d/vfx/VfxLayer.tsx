@@ -37,6 +37,14 @@ function material(color: string, opacity = 1): MeshBasicMaterial {
   return new MeshBasicMaterial({ color, transparent: true, opacity, depthWrite: false });
 }
 
+/** A light source in the effect (flash, tracer, fireball): above 1.0 so bloom catches it (docs/05 §7). */
+function hot(color: string, intensity: number, opacity = 1): MeshBasicMaterial {
+  const m = material(color, opacity);
+  m.color.multiplyScalar(intensity);
+  m.toneMapped = false;
+  return m;
+}
+
 /** A rider for Indians!: a saddled horse and a character held in the Ride pose. */
 function buildRider(): { obj: Object3D; tick: (t: number) => void } {
   const horse = buildHorse({ saddle: true, coat: "#8a5a32" });
@@ -110,7 +118,7 @@ export function VfxLayer() {
 
     const api: VfxApi = {
       muzzleFlash(at) {
-        const m = new Mesh(SPHERE, material("#ffd36b"));
+        const m = new Mesh(SPHERE, hot("#ffd36b", 6));
         m.position.set(...at);
         m.scale.setScalar(0.01);
         const tl = gsap.timeline();
@@ -119,7 +127,7 @@ export function VfxLayer() {
       },
 
       tracer(from, to, color = "#fff2c4") {
-        const m = new Mesh(BULLET, material(color));
+        const m = new Mesh(BULLET, hot(color, 3));
         m.position.set(...from);
         const tl = gsap.timeline();
         tl.to(m.position, { x: to[0], y: to[1], z: to[2], duration: 0.14, ease: "none" });
@@ -145,13 +153,13 @@ export function VfxLayer() {
       explosion(at) {
         const g = new Group();
         g.position.set(...at);
-        const ball = new Mesh(SPHERE, material("#ff8a2a", 0.95));
+        const ball = new Mesh(SPHERE, hot("#ff8a2a", 4, 0.95));
         ball.scale.setScalar(0.1);
         g.add(ball);
         const tl = gsap.timeline();
         tl.to(ball.scale, { x: 1.6, y: 1.6, z: 1.6, duration: 0.25, ease: "power3.out" }, 0).to(ball.material, { opacity: 0, duration: 0.6 }, 0.2);
         for (let i = 0; i < 14; i++) {
-          const d = new Mesh(DEBRIS, material(i % 2 ? "#3a2a1c" : "#ffb347"));
+          const d = new Mesh(DEBRIS, i % 2 ? material("#3a2a1c") : hot("#ffb347", 3));
           g.add(d);
           const a = (i / 14) * Math.PI * 2;
           tl.to(d.position, { x: Math.cos(a) * 2.2, y: 1 + (i % 4) * 0.4, z: Math.sin(a) * 2.2, duration: 0.8, ease: "power2.out" }, 0);

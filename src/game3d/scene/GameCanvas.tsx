@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { PerformanceMonitor } from "@react-three/drei";
 import { Vector3 } from "three";
 import type { TableInteraction } from "@/ui/table/useTableInteraction";
 import { AudioLayer } from "../audio/AudioLayer";
@@ -11,6 +10,9 @@ import { CenterPile } from "../cards/CenterPile";
 import { HandFan } from "../hand/HandFan";
 import { BadgeTracker } from "../hud/BadgeTracker";
 import { PerfProbe } from "../perf/PerfProbe";
+import { AutoQuality } from "./AutoQuality";
+import { PostFX } from "./PostFX";
+import { AmbientDust } from "../vfx/AmbientDust";
 import { QUALITY_CONFIG, resolveQuality } from "../settings/quality";
 import { useSettings } from "../settings/settingsStore";
 import { registerSeatPicker } from "../seatPicker";
@@ -74,7 +76,6 @@ function SeatProjector({ positions, targets }: { positions: { seat: number; pos:
 export function GameCanvas({ ti }: { ti: TableInteraction }) {
   const setting = useSettings((s) => s.quality);
   const autoLevel = useSettings((s) => s.autoLevel);
-  const degradeAuto = useSettings((s) => s.degradeAuto);
   const quality = QUALITY_CONFIG[resolveQuality(setting, autoLevel)];
   const hoveredSeat = useUi3D((s) => s.hoveredSeat);
   const freeCamera = useUi3D((s) => s.freeCamera);
@@ -93,12 +94,13 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
       // three r18x removed PCFSoftShadowMap; "percentage" = PCFShadowMap.
       shadows={quality.shadows ? "percentage" : false}
       dpr={quality.dpr}
-      gl={{ antialias: quality.antialias }}
+      // Through a composer, its own MSAA buffers antialias instead.
+      gl={{ antialias: quality.antialias && !quality.post }}
       camera={{ position: [0, 8.5, 13.5], fov: 50, near: 0.1, far: 500 }}
       onPointerMissed={() => ti.mode.kind === "card" && ti.setMode({ kind: "idle" })}
       data-testid="game-canvas"
     >
-      <PerformanceMonitor onDecline={degradeAuto} flipflops={3} />
+      <AutoQuality />
       <PerfProbe />
       <Town shadows={quality.shadows} shadowMapSize={quality.shadowMapSize} detail={quality.townDetail} />
       {/* Something for metal to reflect (revolvers, hoops, badges); generated, no HDR download. */}
@@ -119,8 +121,11 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
       ))}
       <CameraRig focus={focusSeat} free={freeCamera} cinematic={cinematic} />
       <VfxLayer />
+      <AmbientDust amount={quality.particles} />
+      {quality.post && <PostFX config={quality.post} cinematic={cinematic} />}
       <AudioLayer />
-      <HandFan ti={ti} />
+      {/* With a composer, it renders the scene (priority 1) and the hand HUD draws on top (2). */}
+      <HandFan ti={ti} renderPriority={quality.post ? 2 : 1} />
       <BadgeTracker positions={positions} />
       <SeatProjector positions={positions} targets={targets} />
     </Canvas>

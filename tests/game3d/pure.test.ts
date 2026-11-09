@@ -3,7 +3,7 @@ import { ALL_CARD_IDS, CHARACTER_IDS } from "@/engine";
 import { ASSETS, resolveAsset } from "@/game3d/assets/manifest";
 import { cardFace } from "@/game3d/cards/cardFace";
 import { fanLayout } from "@/game3d/hand/fanLayout";
-import { QUALITIES, QUALITY_CONFIG, resolveQuality, stepDown } from "@/game3d/settings/quality";
+import { AUTO_POLICY, QUALITIES, QUALITY_CONFIG, governorStep, initialGovernor, pickLod, resolveQuality, stepDown, type Governor } from "@/game3d/settings/quality";
 import { BUILDINGS, SEAT_RADIUS, TABLE_CAMERA, facingCenter, focusCamera, seatPosition, towardsCenter } from "@/game3d/world/layout";
 
 describe("seat layout (docs/05 §2)", () => {
@@ -62,6 +62,54 @@ describe("quality presets (docs/05 §8)", () => {
     expect(stepDown("low")).toBe("low");
     expect(resolveQuality("auto", "medium")).toBe("medium");
     expect(resolveQuality("ultra", "low")).toBe("ultra");
+  });
+
+  it("add post-processing passes level by level, as in the docs/05 §8 table", () => {
+    const { low, medium, high, ultra } = QUALITY_CONFIG;
+    expect(low.post).toBeNull();
+    expect(medium.post).toMatchObject({ bloom: true, ssao: false, vignette: false, cinematicDof: false, grain: false });
+    expect(high.post).toMatchObject({ bloom: true, ssao: true, vignette: true, cinematicDof: false, grain: false });
+    expect(ultra.post).toMatchObject({ bloom: true, ssao: true, vignette: true, cinematicDof: true, grain: true });
+    expect(QUALITIES.map((q) => QUALITY_CONFIG[q].particles)).toEqual([0.25, 0.5, 1, 1]);
+    expect(QUALITIES.map((q) => QUALITY_CONFIG[q].shadowMapSize).slice(1)).toEqual([1024, 2048, 4096]);
+  });
+
+  it("picks character LOD by distance with hysteresis; low always uses LOD1", () => {
+    expect(pickLod(0, 5, 0)).toBe(1);
+    expect(pickLod(0, 16, 16)).toBe(0);
+    expect(pickLod(0, 17, 16)).toBe(1);
+    expect(pickLod(1, 15.5, 16)).toBe(1);
+    expect(pickLod(1, 15, 16)).toBe(0);
+  });
+});
+
+describe("auto quality governor (docs/05 §8: fps < 50 for 3 s)", () => {
+  const run = (fps: number, seconds: number, g: Governor = initialGovernor()) => {
+    let steps = 0;
+    for (let t = 0; t < seconds; t += 1 / fps) {
+      const r = governorStep(g, 1 / fps);
+      g = r.next;
+      if (r.stepDown) steps++;
+    }
+    return { g, steps };
+  };
+
+  it("never steps down at 60 fps", () => {
+    expect(run(60, 30).steps).toBe(0);
+  });
+
+  it("steps down once after settling plus 3 s at 30 fps, then waits for the new level to settle", () => {
+    expect(run(30, AUTO_POLICY.settle + 2).steps).toBe(0);
+    expect(run(30, AUTO_POLICY.settle + AUTO_POLICY.slowFor + 0.6).steps).toBe(1);
+  });
+
+  it("a short dip does not count, and a hidden-tab frame is ignored", () => {
+    let { g } = run(60, 5);
+    ({ g } = run(30, 2, g));
+    const back = run(60, 2, g);
+    expect(back.g.slow).toBe(0);
+    expect(governorStep(back.g, 4).stepDown).toBe(false);
+    expect(governorStep(back.g, 4).next).toBe(back.g);
   });
 });
 
