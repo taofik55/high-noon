@@ -5,6 +5,7 @@ import { CameraControls } from "@react-three/drei";
 import gsap from "gsap";
 import { Vector3 } from "three";
 import { registerCamera } from "../director/registry";
+import { reducedMotion } from "../settings/settingsStore";
 import type { Timeline } from "../director/types";
 import { TABLE_CAMERA, focusCamera, type CameraPose, type Vec3 } from "../world/layout";
 
@@ -30,7 +31,8 @@ export function CameraRig({ focus, free, cinematic }: CameraRigProps) {
     const c = controls.current;
     if (!c || free || cinematic) return;
     const pose: CameraPose = fx !== undefined && fz !== undefined ? focusCamera([fx, 0, fz]) : TABLE_CAMERA;
-    void c.setLookAt(...pose.position, ...pose.target, true);
+    // Reduced motion: cut instead of dollying.
+    void c.setLookAt(...pose.position, ...pose.target, !reducedMotion());
   }, [fx, fz, free, cinematic]);
 
   // Scripted shots for the Director: GSAP drives the controls so a scene can be skipped (progress(1)) or sped up.
@@ -59,6 +61,7 @@ export function CameraRig({ focus, free, cinematic }: CameraRigProps) {
     };
     const shake = (strength: number, duration: number): Timeline => {
       const tl = gsap.timeline();
+      if (reducedMotion()) return tl;
       const steps = Math.max(2, Math.round(duration / 0.05));
       for (let i = 0; i < steps; i++) {
         const s = strength * (1 - i / steps);

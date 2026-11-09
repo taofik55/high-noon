@@ -1,3 +1,4 @@
+import { setSetting } from "./settingsHelpers";
 import { expect, test, type Page } from "@playwright/test";
 
 type HandCard = { cardId: string; x: number; y: number; state: string };
@@ -8,8 +9,8 @@ const seats = (page: Page) => page.evaluate(() => window.__highnoonTest?.seats()
 
 /** Cinematics off at 2x: the scenes are skipped, so tests run at game speed (docs/05 §6 "off"). */
 async function fastPresentation(page: Page) {
-  await page.getByTestId("cinematics").selectOption("off");
-  await page.getByTestId("speed").selectOption("2");
+  await setSetting(page, "cinematics", "off");
+  await setSetting(page, "speed", "2");
 }
 
 /** Collects page errors and console errors (three.js deprecation warnings are fine). */
@@ -38,7 +39,7 @@ async function startGame(page: Page, players = "4", url = "/play/solo?placeholde
   await page.getByTestId("setup-start").click();
   await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
   // Headless Chromium renders in software: without shadow passes the full procedural town stays interactive.
-  await page.getByTestId("quality").selectOption("low");
+  await setSetting(page, "quality", "low");
   await expect.poll(async () => (await handCards(page)).length, { timeout: 60_000 }).toBeGreaterThan(0);
 }
 
@@ -178,7 +179,7 @@ test.describe("/play/solo 3D table", () => {
     test.setTimeout(180_000);
     const errors = watchErrors(page);
     await startGame(page, "5");
-    await page.getByTestId("cinematics").selectOption("full");
+    await setSetting(page, "cinematics", "full");
     // Make the bots act (answer whatever is ours first, e.g. the Sheriff's opening turn), until a scene is playing.
     await expect
       .poll(
@@ -211,23 +212,36 @@ test.describe("/play/solo 3D table", () => {
     await expect(page.getByTestId("seat-badge-0")).toContainText("Tester");
   });
 
-  test("sound menu: volumes persist and the credits open", async ({ page }) => {
-    test.setTimeout(120_000);
+  test("settings dialog: volumes and accessibility persist, credits open, language switches in place", async ({ page }) => {
+    test.setTimeout(180_000);
     const errors = watchErrors(page);
     await startGame(page);
     // The first click also unlocks Web Audio (music starts); headless Chromium has an audio backend.
-    await page.getByTestId("btn-sound").click();
-    await expect(page.getByTestId("sound-menu")).toBeVisible();
+    await page.getByTestId("btn-settings").click();
+    await expect(page.getByTestId("settings-dialog")).toBeVisible();
     await expect(page.getByTestId("audio-master")).toHaveValue("80");
     await expect(page.getByTestId("audio-music")).toHaveValue("50");
     await page.getByTestId("audio-music").fill("20");
+    await page.getByTestId("large-text").check();
+    await expect(page.locator("html")).toHaveClass(/large-text/);
+    await page.getByTestId("color-blind-suits").check();
+    await page.getByTestId("reduce-motion").selectOption("on");
+    await expect(page.locator("html")).toHaveClass(/reduce-motion/);
     await page.getByTestId("btn-credits").click();
     await expect(page.getByTestId("credits")).toBeVisible();
     await page.getByTestId("btn-credits-close").click();
+    await page.getByTestId("btn-settings-close").click();
     await page.reload();
     await page.getByTestId("setup-resume").click();
-    await page.getByTestId("btn-sound").click();
+    await page.getByTestId("btn-settings").click();
     await expect(page.getByTestId("audio-music")).toHaveValue("20");
+    await expect(page.getByTestId("large-text")).toBeChecked();
+    await expect(page.getByTestId("color-blind-suits")).toBeChecked();
+    // English: the app re-renders in place; the game is saved and resumes.
+    await page.getByTestId("language").selectOption("en");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
+    await page.getByTestId("setup-resume").click();
+    await expect(page.getByTestId("btn-settings")).toHaveText("Settings");
     expect(errors.filter((e) => !/THREE\.Clock|GL Driver|instant/.test(e))).toEqual([]);
   });
 

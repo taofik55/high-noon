@@ -7,9 +7,8 @@ import type { StoreApi } from "zustand/vanilla";
 import { placeholdersOnly } from "@/game3d/assetMode";
 import { prefetchCardArt } from "@/game3d/cards/cardTexture";
 import { Director } from "@/game3d/director/Director";
-import type { CinematicMode } from "@/game3d/director/types";
-import { QUALITIES, type QualitySetting } from "@/game3d/settings/quality";
-import { SPEEDS, useSettings, type Speed } from "@/game3d/settings/settingsStore";
+import { effectiveCinematics, reducedMotion, useSettings } from "@/game3d/settings/settingsStore";
+import { SettingsDialog } from "../settings/SettingsPanel";
 import { SeatBadges } from "@/game3d/hud/SeatBadges";
 import { PerfOverlay } from "@/game3d/perf/PerfOverlay";
 import { perfOverlayRequested } from "@/game3d/perf/perfStats";
@@ -23,7 +22,6 @@ import { GameLog } from "../table/GameLog";
 import { PromptPanel } from "../table/PromptPanel";
 import { useTableInteraction } from "../table/useTableInteraction";
 import { LoadingCurtain, StreamingNote } from "./LoadingScreen";
-import { SoundMenu } from "./SoundMenu";
 
 // three.js must never render on the server.
 const GameCanvas = dynamic(() => import("@/game3d/scene/GameCanvas").then((m) => m.GameCanvas), {
@@ -52,23 +50,18 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
   const log = useStore(store, (s) => s.log);
   const error = useStore(store, (s) => s.error);
   const presenting = useStore(store, (s) => s.presenting);
-  const cinematics = useSettings((s) => s.cinematics);
-  const setCinematics = useSettings((s) => s.setCinematics);
-  const speed = useSettings((s) => s.speed);
-  const setSpeed = useSettings((s) => s.setSpeed);
   const banner = useUi3D((s) => s.banner);
-  const quality = useSettings((s) => s.quality);
-  const setQuality = useSettings((s) => s.setQuality);
   const hoveredCard = useUi3D((s) => s.hoveredCard);
   const freeCamera = useUi3D((s) => s.freeCamera);
   const setFreeCamera = useUi3D((s) => s.setFreeCamera);
   const [showLog, setShowLog] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [showPerf, setShowPerf] = useState(perfOverlayRequested);
 
   // The Director stages every update on this table (docs/05 §6); without it the store falls back to short delays.
   useEffect(() => {
     const director = new Director(
-      () => ({ mode: useSettings.getState().cinematics, speed: useSettings.getState().speed }),
+      () => ({ mode: effectiveCinematics(useSettings.getState().cinematics, reducedMotion()), speed: useSettings.getState().speed }),
       (on) => useUi3D.getState().setCinematic(on),
     );
     store.getState().setPresenter(director);
@@ -113,52 +106,9 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
         <span className="text-amber-300">{t(`phase.${view.turn.phase}`)}</span>
         <span className="text-stone-400">{t("table.deck", { n: view.deckCount })}</span>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1">
-            {t("solo.quality")}
-            <select
-              data-testid="quality"
-              className="rounded border border-stone-600 bg-stone-800 px-1 py-0.5"
-              value={quality}
-              onChange={(e) => setQuality(e.target.value as QualitySetting)}
-            >
-              {(["auto", ...QUALITIES] as const).map((q) => (
-                <option key={q} value={q}>
-                  {t(`solo.quality.${q}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1">
-            {t("solo.cinematics")}
-            <select
-              data-testid="cinematics"
-              className="rounded border border-stone-600 bg-stone-800 px-1 py-0.5"
-              value={cinematics}
-              onChange={(e) => setCinematics(e.target.value as CinematicMode)}
-            >
-              {(["full", "short", "off"] as const).map((m) => (
-                <option key={m} value={m}>
-                  {t(`solo.cinematics.${m}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex items-center gap-1">
-            {t("solo.speed")}
-            <select
-              data-testid="speed"
-              className="rounded border border-stone-600 bg-stone-800 px-1 py-0.5"
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value) as Speed)}
-            >
-              {SPEEDS.map((x) => (
-                <option key={x} value={x}>
-                  {x}x
-                </option>
-              ))}
-            </select>
-          </label>
-          <SoundMenu />
+          <Button onClick={() => setSettingsOpen(true)} testId="btn-settings">
+            {t("settings.title")}
+          </Button>
           <Button onClick={() => store.getState().skip()} disabled={!presenting} testId="btn-skip">
             {t("solo.skip")}
           </Button>
@@ -217,6 +167,7 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
       )}
 
       {showPerf && <PerfOverlay />}
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       <StreamingNote />
       <LoadingCurtain />
 

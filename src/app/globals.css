@@ -24,3 +24,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Accessibility settings (SettingsRoot): larger text scales every rem-based size. */
+html.large-text {
+  font-size: 112.5%;
+}
+
+/* Reduced motion: no CSS animations or transitions anywhere in the UI. */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}

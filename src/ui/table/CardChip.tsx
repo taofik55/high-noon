@@ -1,7 +1,8 @@
 "use client";
 
 import type { CardId } from "@/engine";
-import { cardLabel, cardRules, isRedSuit } from "../cards";
+import { useSettings } from "@/game3d/settings/settingsStore";
+import { cardLabel, cardRules, cardSuit, suitColor } from "../cards";
 
 interface CardChipProps {
   cardId: CardId;
@@ -20,7 +21,8 @@ export function CardChip({ cardId, size = "sm", state = "normal", onClick, testI
     dimmed: "border-stone-600 bg-stone-300 text-stone-600 opacity-60",
     selected: "border-sky-500 bg-sky-100 text-stone-900 ring-2 ring-sky-400 -translate-y-1",
   }[state];
-  const suit = isRedSuit(cardId) ? "text-red-700" : "text-stone-900";
+  const fourColor = useSettings((s) => s.colorBlindSuits);
+  const color = state === "dimmed" ? undefined : suitColor(cardSuit(cardId), fourColor);
   return (
     <button
       type="button"
@@ -29,7 +31,8 @@ export function CardChip({ cardId, size = "sm", state = "normal", onClick, testI
       disabled={!onClick}
       data-testid={testId}
       data-card={cardId}
-      className={`rounded border font-semibold shadow-sm transition ${base} ${tone} ${suit} disabled:cursor-default`}
+      className={`rounded border font-semibold shadow-sm transition ${base} ${tone} disabled:cursor-default`}
+      style={color ? { color } : undefined}
     >
       {cardLabel(cardId)}
     </button>

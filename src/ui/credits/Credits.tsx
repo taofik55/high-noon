@@ -1,3 +1,5 @@
+"use client";
+
 import { GAME_TITLE } from "@/config/game";
 import { t } from "../i18n";
 

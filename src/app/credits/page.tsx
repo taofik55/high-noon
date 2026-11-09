@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Credits } from "@/ui/credits/Credits";
-import { t } from "@/ui/i18n";
+import { Msg } from "@/ui/i18n/Msg";
 
 export default function CreditsPage() {
   return (
@@ -9,7 +9,7 @@ export default function CreditsPage() {
         <Credits />
       </div>
       <Link href="/" className="text-amber-300 underline">
-        {t("credits.close")}
+        <Msg k="credits.close" />
       </Link>
     </main>
   );

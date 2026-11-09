@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import type { Locale } from "@/ui/i18n";
 import type { CinematicMode } from "../director/types";
 import { AUTO_START, stepDown, type Quality, type QualitySetting } from "./quality";
 
@@ -23,6 +24,20 @@ interface SettingsState {
   /** docs/05 §10: master / music / effects volume, 0–1 (defaults 0.8 / 0.5 / 0.8). */
   volume: Volumes;
   setVolume(channel: keyof Volumes, value: number): void;
+  /** docs/01 §6 language (default Bahasa Indonesia). */
+  locale: Locale;
+  setLocale(locale: Locale): void;
+  /** Accessibility: "system" follows prefers-reduced-motion. */
+  reduceMotion: "system" | "on" | "off";
+  setReduceMotion(v: "system" | "on" | "off"): void;
+  largeText: boolean;
+  setLargeText(on: boolean): void;
+  /** Four-colour suits (♥ red, ♦ blue, ♣ green, ♠ black) instead of red/black. */
+  colorBlindSuits: boolean;
+  setColorBlindSuits(on: boolean): void;
+  /** The first-game tutorial was finished or skipped. */
+  tutorialDone: boolean;
+  setTutorialDone(done: boolean): void;
 }
 
 export interface Volumes {
@@ -58,7 +73,7 @@ const safeStorage: StateStorage = {
   },
 };
 
-/** docs/03 §4.3 settingsStore: graphics, cinematics and audio. */
+/** docs/03 §4.3 settingsStore: graphics, cinematics, audio, language and accessibility. */
 export const useSettings = create<SettingsState>()(
   persist(
     (set, get) => ({
@@ -74,11 +89,31 @@ export const useSettings = create<SettingsState>()(
       setSpeed: (speed) => set({ speed }),
       volume: DEFAULT_VOLUMES,
       setVolume: (channel, value) => set({ volume: { ...get().volume, [channel]: Math.min(1, Math.max(0, value)) } }),
+      locale: "id",
+      setLocale: (locale) => set({ locale }),
+      reduceMotion: "system",
+      setReduceMotion: (reduceMotion) => set({ reduceMotion }),
+      largeText: false,
+      setLargeText: (largeText) => set({ largeText }),
+      colorBlindSuits: false,
+      setColorBlindSuits: (colorBlindSuits) => set({ colorBlindSuits }),
+      tutorialDone: false,
+      setTutorialDone: (tutorialDone) => set({ tutorialDone }),
     }),
     {
       name: "highnoon.settings.v1",
       storage: createJSONStorage(() => safeStorage),
-      partialize: (s) => ({ quality: s.quality, cinematics: s.cinematics, speed: s.speed, volume: s.volume }),
+      partialize: (s) => ({
+        quality: s.quality,
+        cinematics: s.cinematics,
+        speed: s.speed,
+        volume: s.volume,
+        locale: s.locale,
+        reduceMotion: s.reduceMotion,
+        largeText: s.largeText,
+        colorBlindSuits: s.colorBlindSuits,
+        tutorialDone: s.tutorialDone,
+      }),
       // Older saves have no volumes: keep the defaults for missing channels.
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<SettingsState>;
@@ -87,3 +122,15 @@ export const useSettings = create<SettingsState>()(
     },
   ),
 );
+
+/** Reduced motion in effect: the player's choice, or the OS setting when it is "system". */
+export function reducedMotion(): boolean {
+  const pref = useSettings.getState().reduceMotion;
+  if (pref !== "system") return pref === "on";
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Reduced motion caps cinematics at "short": no flying camera, no shake, no walk-outs (docs/01 §6 accessibility). */
+export function effectiveCinematics(mode: CinematicMode, reduced: boolean): CinematicMode {
+  return reduced && mode === "full" ? "short" : mode;
+}

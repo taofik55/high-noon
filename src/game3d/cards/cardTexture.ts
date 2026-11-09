@@ -7,6 +7,9 @@ import { cardType, type CardType } from "@/engine";
 import { ALL_CARDS } from "@/engine";
 import { enqueue, PRIORITY } from "../streaming/buildQueue";
 import { ART_H, ART_W, cardArt, peekCardArt } from "./cardArt";
+import { suitColor } from "@/ui/cards";
+import { DISPLAY_CHANGED } from "@/ui/settings/events";
+import { useSettings } from "../settings/settingsStore";
 import { cardFace, type CardFace } from "./cardFace";
 
 // Card faces (docs/07 §2.5): corner index, title band, an engraved illustration of the card's scene (cardArt.ts),
@@ -65,7 +68,7 @@ function drawFace(ctx: CanvasRenderingContext2D, face: CardFace, art: HTMLCanvas
   ctx.stroke();
 
   // Corner (rank + suit), top-left and bottom-right
-  ctx.fillStyle = face.red ? "#b3261e" : "#1d1a17";
+  ctx.fillStyle = suitColor(face.suit, useSettings.getState().colorBlindSuits);
   ctx.font = "bold 52px Georgia, serif";
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
@@ -178,6 +181,22 @@ export function cardFaceTexture(id: CardId, priority: number = PRIORITY.visible)
   }
   return texture;
 }
+
+/**
+ * Redraws every cached face (after a language or suit-colour change: the rules text and the corner index are part of
+ * the texture).
+ */
+export function redrawCardFaces(): void {
+  for (const [id, texture] of cache) {
+    if (id === "back") continue;
+    const ctx = (texture.image as HTMLCanvasElement).getContext("2d");
+    if (!ctx) continue;
+    drawFace(ctx, cardFace(id as CardId), peekCardArt(cardType(id as CardId)) ?? null);
+    texture.needsUpdate = true;
+  }
+}
+
+if (typeof window !== "undefined") window.addEventListener(DISPLAY_CHANGED, redrawCardFaces);
 
 /** Queues every card type's illustration behind the game (background streaming). */
 export function prefetchCardArt(): void {

@@ -1,3 +1,4 @@
+import { setSetting } from "./settingsHelpers";
 import { expect, test } from "@playwright/test";
 
 /**
@@ -15,10 +16,10 @@ test("perf report: TABLE view stays within the draw-call budget", async ({ page 
   await page.getByTestId("setup-difficulty").selectOption("easy");
   await page.getByTestId("setup-start").click();
   await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
-  await page.getByTestId("cinematics").selectOption("off");
+  await setSetting(page, "cinematics", "off");
   const report: Record<string, unknown> = {};
   for (const q of ["low", "medium", "high", "ultra"]) {
-    await page.getByTestId("quality").selectOption(q);
+    await setSetting(page, "quality", q);
     await page.waitForTimeout(4000);
     const stats = await page.evaluate(() => window.__highnoonTest?.perf() ?? null);
     report[q] = stats;

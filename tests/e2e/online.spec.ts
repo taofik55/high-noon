@@ -1,5 +1,6 @@
 import { expect as baseExpect, test, type Page } from "@playwright/test";
 import { closePlayers, hostRoom, joinByLink, newPlayer, supabaseUp } from "./onlineHelpers";
+import { setSetting } from "./settingsHelpers";
 
 // Realtime round trips between two browsers on a busy dev server: allow more than the 5 s default.
 const expect = baseExpect.configure({ timeout: 15_000 });
@@ -48,7 +49,7 @@ async function startGame(ana: Page, budi: Page): Promise<string> {
 /** The 3D table, with cinematics off. */
 async function toTable(page: Page): Promise<void> {
   await expect(page.getByTestId("game-table")).toBeVisible({ timeout: 60_000 });
-  await page.getByTestId("cinematics").selectOption("off");
+  await setSetting(page, "cinematics", "off");
 }
 
 /**

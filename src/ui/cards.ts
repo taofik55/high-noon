@@ -45,10 +45,20 @@ export function cardRules(id: CardId): string {
   return t(`card.${getCard(id).type}` as MessageKey);
 }
 
-export function isRedSuit(id: CardId): boolean {
-  const suit = getCard(id).suit;
-  return suit === "hearts" || suit === "diamonds";
+const SUIT_COLORS: Record<"classic" | "fourColor", Record<Suit, string>> = {
+  classic: { hearts: "#b3261e", diamonds: "#b3261e", clubs: "#1d1a17", spades: "#1d1a17" },
+  // Accessibility: red / blue / green / black tell all four suits apart without relying on red vs black.
+  fourColor: { hearts: "#b3261e", diamonds: "#1f5fbf", clubs: "#1e7a35", spades: "#1d1a17" },
+};
+
+export function suitColor(suit: Suit, fourColor: boolean): string {
+  return SUIT_COLORS[fourColor ? "fourColor" : "classic"][suit];
 }
+
+export function cardSuit(id: CardId): Suit {
+  return getCard(id).suit;
+}
+
 
 export function characterName(id: CharacterId | null): string {
   return id ? CHARACTERS[id].name : "?";
