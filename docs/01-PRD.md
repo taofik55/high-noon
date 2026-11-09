@@ -46,6 +46,16 @@ The owner and their friends, playing privately. The site is `noindex`, optionall
 | Graphics quality (local) | low, medium, high, ultra, auto | auto |
 | Audio | master, music, sfx volumes | 80/50/80 |
 | Language | Bahasa Indonesia, English | Bahasa Indonesia |
+| Reduce motion (accessibility) | follow system, on, off | follow system |
+| Large text (accessibility) | on, off | off |
+| Four-colour suits (accessibility) | on, off | off |
+
+**As built (Phase 13):** all local settings live in `settingsStore` (persisted in localStorage) and are edited in one
+panel, at `/settings` and in the in-game "Pengaturan" dialog. Reduce motion caps cinematics at "short" (no flying
+camera, no shake, walk-outs or camera dollies) and turns off CSS animations. The language switch re-renders the app in
+place (the server and hydration always render Bahasa Indonesia; `SettingsRoot` switches right after hydration); a solo
+game in progress is saved and resumes, online games resync. A first-game tutorial (8 coach marks over the live table)
+can be replayed from the settings. Touch devices force the low preset; the TABLE camera backs off on portrait screens.
 
 ## 7. Core user flows
 1. **First visit:** (optional password) → enter nickname → anonymous sign-in → home.

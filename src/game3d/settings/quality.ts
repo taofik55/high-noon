@@ -113,6 +113,13 @@ export function stepDown(q: Quality): Quality {
   return QUALITIES[Math.max(0, i - 1)] ?? "low";
 }
 
-export function resolveQuality(setting: QualitySetting, autoLevel: Quality): Quality {
+export function resolveQuality(setting: QualitySetting, autoLevel: Quality, touch = false): Quality {
+  // docs/05 §8: mobile forces low.
+  if (touch) return "low";
   return setting === "auto" ? autoLevel : setting;
+}
+
+/** A phone or tablet: the primary pointer is a finger (no hover, coarse). */
+export function touchDevice(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(pointer: coarse) and (hover: none)").matches;
 }

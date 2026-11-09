@@ -54,7 +54,7 @@ export function Tutorial() {
         data-testid="tutorial"
         role="dialog"
         aria-label={t("tutorial.title")}
-        className="absolute top-14 left-4 z-40 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-amber-500 bg-stone-950/95 p-4 text-sm text-amber-50 shadow-2xl"
+        className="absolute top-24 left-4 z-40 sm:top-14 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-amber-500 bg-stone-950/95 p-4 text-sm text-amber-50 shadow-2xl"
       >
         <div className="mb-1 flex justify-between text-xs text-amber-400">
           <span className="font-bold tracking-widest uppercase">{t("tutorial.title")}</span>

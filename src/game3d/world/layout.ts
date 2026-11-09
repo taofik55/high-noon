@@ -38,6 +38,18 @@ export interface CameraPose {
 /** TABLE mode: elevated 3/4 view of the whole ring from behind my seat (docs/05 §3). */
 export const TABLE_CAMERA: CameraPose = { position: [0, 8.5, 13.5], target: [0, 0.4, -0.8] };
 
+/**
+ * TABLE view for a screen aspect: on narrow (portrait) screens the camera backs off along its view line so the side
+ * seats stay in frame; landscape screens get TABLE_CAMERA as is.
+ */
+export function tableCamera(aspect: number): CameraPose {
+  const k = aspect >= 1.3 ? 1 : Math.min(2.1, 1.3 / Math.max(0.1, aspect));
+  if (k === 1) return TABLE_CAMERA;
+  const [px, py, pz] = TABLE_CAMERA.position;
+  const [tx, ty, tz] = TABLE_CAMERA.target;
+  return { position: [round(tx + (px - tx) * k), round(ty + (py - ty) * k), round(tz + (pz - tz) * k)], target: TABLE_CAMERA.target };
+}
+
 /** FOCUS mode: dolly part of the way towards a seat and look at the character. */
 export function focusCamera(seatPos: Vec3): CameraPose {
   const [x, , z] = seatPos;

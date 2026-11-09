@@ -90,19 +90,21 @@ export function HandFan({ ti, renderPriority = 1 }: { ti: TableInteraction; rend
     return { x: clientX - rect.left, y: clientY - rect.top };
   };
 
+  const sizeRef = useRef(size);
+  useEffect(() => {
+    sizeRef.current = size;
+  });
+  const release = useRef<(() => void) | null>(null);
+  useEffect(() => () => release.current?.(), []);
+
+  // Drag tracking on the window, so the pointer can leave the card (and the HUD) freely. The listeners go on in the
+  // press handler itself: a quick tap on a touch screen lifts the finger before React would run an effect.
   const onPress = (cardId: CardId, e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     if (!tiRef.current.actNow) return;
-    const p = toCanvas(e.nativeEvent.clientX, e.nativeEvent.clientY);
-    setDrag({ cardId, x: p.x, y: p.y, active: false });
-  };
-
-  // Drag tracking on the window, so the pointer can leave the card (and the HUD) freely.
-  const dragging = drag !== null;
-  useEffect(() => {
-    if (!dragging) return;
-    const start = useUi3D.getState().drag;
-    if (!start) return;
+    const start = toCanvas(e.nativeEvent.clientX, e.nativeEvent.clientY);
+    setDrag({ cardId, x: start.x, y: start.y, active: false });
+    release.current?.();
     const move = (ev: PointerEvent) => {
       const cur = useUi3D.getState().drag;
       if (!cur) return;
@@ -111,6 +113,7 @@ export function HandFan({ ti, renderPriority = 1 }: { ti: TableInteraction; rend
       setDrag({ ...cur, x: p.x, y: p.y, active });
     };
     const up = () => {
+      stop();
       const cur = useUi3D.getState().drag;
       setDrag(null);
       if (!cur) return;
@@ -121,17 +124,19 @@ export function HandFan({ ti, renderPriority = 1 }: { ti: TableInteraction; rend
       const seat = useUi3D.getState().hoveredSeat ?? seatAtPointer(cur.x, cur.y);
       // Dropped on a player, or anywhere above the hand for cards that need no target.
       if (seat !== null) tiRef.current.dropCard(cur.cardId, seat);
-      else if (cur.y < size.height * 0.62) tiRef.current.dropCard(cur.cardId, null);
+      else if (cur.y < sizeRef.current.height * 0.62) tiRef.current.dropCard(cur.cardId, null);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      release.current = null;
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
-    return () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    // Registered once per drag; handlers read fresh state from the stores and refs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging]);
+    window.addEventListener("pointercancel", up);
+    release.current = stop;
+  };
 
   useEffect(
     () =>
@@ -140,7 +145,8 @@ export function HandFan({ ti, renderPriority = 1 }: { ti: TableInteraction; rend
         const cur = tiRef.current.view?.myHand ?? [];
         return fanLayout(cur.length, rect.width, rect.height).map((s, i) => ({
           cardId: cur[i] as CardId,
-          x: rect.left + rect.width / 2 + s.x,
+          // The visible strip of the card, where a player would click or tap it.
+          x: rect.left + rect.width / 2 + s.pickX,
           y: rect.top + rect.height / 2 - s.y,
           state: tiRef.current.handState(cur[i] as CardId),
         }));
@@ -155,7 +161,7 @@ export function HandFan({ ti, renderPriority = 1 }: { ti: TableInteraction; rend
         <HandCard
           key={id}
           cardId={id}
-          slot={slots[i] ?? { x: 0, y: 0, rotation: 0 }}
+          slot={slots[i] ?? { x: 0, y: 0, rotation: 0, pickX: 0 }}
           index={i}
           state={ti.handState(id)}
           hidden={drag?.active === true && drag.cardId === id}

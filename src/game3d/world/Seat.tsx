@@ -17,7 +17,7 @@ import { DEFAULT_SPEC } from "../procedural/character/spec";
 import { buildCrate, buildGrave } from "../procedural/props/props";
 import { buildWeapon, LONG_GUNS, WEAPON_IDS, type WeaponId } from "../procedural/weapons";
 import { registerRig } from "../director/registry";
-import { pickLod, QUALITY_CONFIG, resolveQuality } from "../settings/quality";
+import { pickLod, QUALITY_CONFIG, resolveQuality, touchDevice } from "../settings/quality";
 import { useSettings } from "../settings/settingsStore";
 import type { RigApi } from "../director/types";
 import { enqueue, PRIORITY } from "../streaming/buildQueue";
@@ -147,8 +147,8 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
     r?.reset();
   }, [version, player.alive]);
 
-  const lodDistance = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel)].lodDistance);
-  const realShadows = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel)].shadows);
+  const lodDistance = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel, touchDevice())].lodDistance);
+  const realShadows = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel, touchDevice())].shadows);
   const blobParts = realShadows ? null : blobShadow();
   const worldPos = useRef(new Vector3());
   useFrame(({ camera }, dt) => {

@@ -14,7 +14,7 @@ import { setSceneMounted } from "../streaming/buildQueue";
 import { AutoQuality } from "./AutoQuality";
 import { PostFX } from "./PostFX";
 import { AmbientDust } from "../vfx/AmbientDust";
-import { QUALITY_CONFIG, resolveQuality } from "../settings/quality";
+import { QUALITY_CONFIG, resolveQuality, touchDevice } from "../settings/quality";
 import { useSettings } from "../settings/settingsStore";
 import { registerSeatPicker } from "../seatPicker";
 import { registerTestProvider } from "../testHook";
@@ -86,7 +86,7 @@ function SceneMounted() {
 export function GameCanvas({ ti }: { ti: TableInteraction }) {
   const setting = useSettings((s) => s.quality);
   const autoLevel = useSettings((s) => s.autoLevel);
-  const quality = QUALITY_CONFIG[resolveQuality(setting, autoLevel)];
+  const quality = QUALITY_CONFIG[resolveQuality(setting, autoLevel, touchDevice())];
   const hoveredSeat = useUi3D((s) => s.hoveredSeat);
   const freeCamera = useUi3D((s) => s.freeCamera);
   const cinematic = useUi3D((s) => s.cinematic);

@@ -57,7 +57,8 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
   const focusedSeat = useUi3D((s) => s.focusedSeat);
   const freeCamera = useUi3D((s) => s.freeCamera);
   const setFreeCamera = useUi3D((s) => s.setFreeCamera);
-  const [showLog, setShowLog] = useState(true);
+  // Narrow screens (phones) start with the log hidden: it would cover most of the table.
+  const [showLog, setShowLog] = useState(() => typeof window === "undefined" || window.innerWidth >= 900);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showPerf, setShowPerf] = useState(perfOverlayRequested);
 
@@ -103,7 +104,7 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
       </div>
       <SeatBadges view={view} targets={targets} thinking={thinking} />
 
-      <header className="absolute top-0 right-0 left-0 z-30 flex flex-wrap items-center gap-3 bg-stone-950/70 px-4 py-2 text-sm">
+      <header className="absolute top-0 right-0 left-0 z-30 flex flex-wrap items-center gap-x-3 gap-y-1 bg-stone-950/70 px-2 py-1 text-xs sm:px-4 sm:py-2 sm:text-sm">
         <span className="font-bold tracking-widest text-amber-400 uppercase">{title}</span>
         <span>{t("table.turn", { n: view.turn.number })}</span>
         <span className="text-amber-300">{t(`phase.${view.turn.phase}`)}</span>
@@ -138,11 +139,11 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
       {/* The bottom band (HAND_BAND) belongs to the 3D hand: no HTML panel may cover a card there. */}
       <div className="absolute bottom-60 left-4 z-30 w-96 max-w-[calc(100vw-2rem)]">
         <PromptPanel ti={ti} thinking={thinking !== null} error={error} />
-        <p className="mt-1 text-xs text-stone-400">{t("solo.hint")}</p>
+        <p className="mt-1 hidden text-xs text-stone-400 sm:block">{t("solo.hint")}</p>
       </div>
 
       {/* top-24 clears a header that wraps to two rows on narrower screens. */}
-      {showLog && <GameLog log={log} className="absolute top-24 right-4 bottom-60 z-30 w-80" />}
+      {showLog && <GameLog log={log} className="absolute top-24 right-2 bottom-60 z-30 w-80 max-w-[calc(100vw-1rem)] sm:right-4" />}
 
       {banner && (
         <div

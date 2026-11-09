@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, type ComponentRef } from "react";
+import { useEffect, useLayoutEffect, useRef, type ComponentRef } from "react";
 import { CameraControls } from "@react-three/drei";
+import { useThree } from "@react-three/fiber";
 import gsap from "gsap";
 import { Vector3 } from "three";
 import { registerCamera } from "../director/registry";
 import { reducedMotion } from "../settings/settingsStore";
 import type { Timeline } from "../director/types";
-import { TABLE_CAMERA, focusCamera, type CameraPose, type Vec3 } from "../world/layout";
+import { focusCamera, tableCamera, type CameraPose, type Vec3 } from "../world/layout";
 
 interface CameraRigProps {
   /** Seat position to dolly towards (FOCUS), or null for the TABLE view. */
@@ -26,14 +27,19 @@ export function CameraRig({ focus, free, cinematic }: CameraRigProps) {
   const controls = useRef<ComponentRef<typeof CameraControls>>(null);
   const fx = focus?.[0];
   const fz = focus?.[2];
+  const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
+  const table = useRef(tableCamera(aspect));
+  useLayoutEffect(() => {
+    table.current = tableCamera(aspect);
+  });
 
   useEffect(() => {
     const c = controls.current;
     if (!c || free || cinematic) return;
-    const pose: CameraPose = fx !== undefined && fz !== undefined ? focusCamera([fx, 0, fz]) : TABLE_CAMERA;
+    const pose: CameraPose = fx !== undefined && fz !== undefined ? focusCamera([fx, 0, fz]) : tableCamera(aspect);
     // Reduced motion: cut instead of dollying.
     void c.setLookAt(...pose.position, ...pose.target, !reducedMotion());
-  }, [fx, fz, free, cinematic]);
+  }, [fx, fz, free, cinematic, aspect]);
 
   // Scripted shots for the Director: GSAP drives the controls so a scene can be skipped (progress(1)) or sped up.
   useEffect(() => {
@@ -71,7 +77,7 @@ export function CameraRig({ focus, free, cinematic }: CameraRigProps) {
       tl.call(() => void controls.current?.setFocalOffset(0, 0, 0, false));
       return tl;
     };
-    return registerCamera({ shot, shake, home: (d) => shot(TABLE_CAMERA, d) });
+    return registerCamera({ shot, shake, home: (d) => shot(table.current, d) });
   }, []);
 
   return <CameraControls ref={controls} makeDefault enabled={free} smoothTime={0.35} />;

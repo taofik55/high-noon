@@ -4,7 +4,7 @@ import { ASSETS, resolveAsset } from "@/game3d/assets/manifest";
 import { cardFace } from "@/game3d/cards/cardFace";
 import { fanLayout } from "@/game3d/hand/fanLayout";
 import { AUTO_POLICY, QUALITIES, QUALITY_CONFIG, governorStep, initialGovernor, pickLod, resolveQuality, stepDown, type Governor } from "@/game3d/settings/quality";
-import { BUILDINGS, SEAT_RADIUS, TABLE_CAMERA, facingCenter, focusCamera, seatPosition, towardsCenter } from "@/game3d/world/layout";
+import { BUILDINGS, SEAT_RADIUS, TABLE_CAMERA, facingCenter, focusCamera, seatPosition, tableCamera, towardsCenter } from "@/game3d/world/layout";
 
 describe("seat layout (docs/05 §2)", () => {
   it.each([4, 5, 6, 7])("puts me at the front and the others clockwise (to my left first) for %i players", (n) => {
@@ -49,6 +49,16 @@ describe("seat layout (docs/05 §2)", () => {
   });
 });
 
+describe("table camera per screen aspect (mobile)", () => {
+  it("landscape keeps TABLE_CAMERA; portrait backs off along the same view line", () => {
+    expect(tableCamera(16 / 9)).toBe(TABLE_CAMERA);
+    const phone = tableCamera(390 / 844);
+    const dist = (p: readonly number[]) => Math.hypot(p[0]! - TABLE_CAMERA.target[0], p[1]! - TABLE_CAMERA.target[1], p[2]! - TABLE_CAMERA.target[2]);
+    expect(dist(phone.position)).toBeGreaterThan(dist(TABLE_CAMERA.position) * 1.9);
+    expect(phone.target).toEqual(TABLE_CAMERA.target);
+  });
+});
+
 describe("quality presets (docs/05 §8)", () => {
   it("scale up from low to ultra", () => {
     const sizes = QUALITIES.map((q) => QUALITY_CONFIG[q].shadowMapSize);
@@ -62,6 +72,11 @@ describe("quality presets (docs/05 §8)", () => {
     expect(stepDown("low")).toBe("low");
     expect(resolveQuality("auto", "medium")).toBe("medium");
     expect(resolveQuality("ultra", "low")).toBe("ultra");
+  });
+
+  it("touch devices always resolve to low (docs/05 §8 mobile)", () => {
+    expect(resolveQuality("ultra", "high", true)).toBe("low");
+    expect(resolveQuality("auto", "high", true)).toBe("low");
   });
 
   it("add post-processing passes level by level, as in the docs/05 §8 table", () => {
@@ -150,6 +165,18 @@ describe("hand fan layout (docs/05 §4)", () => {
     expect(Math.abs(slots[0]?.x ?? 0)).toBeLessThan(1440 / 2);
     // The middle card sits highest.
     for (const s of slots) expect(s.y).toBeLessThanOrEqual(slots[3]?.y ?? 0);
+  });
+
+  it("on a phone the fan spans most of the width and every card keeps a pickable strip", () => {
+    const phone = fanLayout(6, 390, 844);
+    const span = (phone.at(-1)?.x ?? 0) - (phone[0]?.x ?? 0) + 118;
+    expect(span).toBeLessThanOrEqual(390 * 0.92 + 1e-6);
+    expect(span).toBeGreaterThan(390 * 0.8);
+    for (let i = 0; i < phone.length - 1; i++) {
+      // The pick point lies left of where the next card starts.
+      expect(phone[i]!.pickX).toBeLessThan(phone[i + 1]!.x - 59);
+    }
+    expect(phone.at(-1)!.pickX).toBe(phone.at(-1)!.x);
   });
 
   it("squeezes big hands into the same width", () => {

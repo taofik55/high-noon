@@ -164,6 +164,10 @@ interface Sequence {
 | ultra | 4096 | + DoF in cinematics, grain | device | 100% | quality |
 `auto` picks via drei `PerformanceMonitor` / `AdaptiveDpr`, steps down when fps < 50 for 3 s.
 Mobile forces `low` and uses tap-to-select instead of drag.
+(As built: `touchDevice()` = `(pointer: coarse) and (hover: none)`; a tap is a click, so it selects a card and then a
+glowing player; drags still work. Drag listeners are attached in the press handler itself, because a quick tap lifts
+the finger before an effect would have attached them. On portrait screens `tableCamera(aspect)` backs the TABLE camera
+off along its view line so every seat stays in frame; the log starts hidden below 900 px.)
 
 **As built (Phase 13)** — `src/game3d/settings/quality.ts` (`QUALITY_CONFIG`), `scene/PostFX.tsx`:
 - Tone mapping is ACES everywhere (renderer without a composer, `ToneMapping` pass with one), so presets differ in

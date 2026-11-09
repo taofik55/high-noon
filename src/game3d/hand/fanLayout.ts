@@ -5,20 +5,31 @@ export interface FanSlot {
   x: number;
   y: number;
   rotation: number;
+  /** Middle of the part of the card not covered by the next one: where a finger or pointer actually picks it. */
+  pickX: number;
 }
 
 /**
- * Fan layout of the hand in HUD pixels (origin = screen center, y up): cards spread over at most ~55% of the width,
- * a gentle arc and tilt, the middle card highest. Pure, so it is shared with the test hook and unit-tested.
+ * Fan layout of the hand in HUD pixels (origin = screen center, y up): cards spread over at most ~55% of the width
+ * (almost all of it on phones, where every pixel of a card's visible strip counts), a gentle arc and tilt, the middle
+ * card highest. Pure, so it is shared with the test hook and unit-tested.
  */
 export function fanLayout(count: number, width: number, height: number): FanSlot[] {
-  const spacing = Math.min(HAND_CARD_PX * 0.82, (width * 0.55) / Math.max(1, count));
+  const spacing =
+    width < 640
+      ? // Phones: the whole fan, card edges included, spans 92% of the width.
+        Math.min(HAND_CARD_PX * 0.82, (width * 0.92 - HAND_CARD_PX) / Math.max(1, count - 1))
+      : Math.min(HAND_CARD_PX * 0.82, (width * 0.55) / Math.max(1, count));
   return Array.from({ length: count }, (_, i) => {
     const offset = i - (count - 1) / 2;
+    const x = offset * spacing;
+    // Later cards lie on top: all but the last show only their left `spacing` pixels.
+    const covered = i < count - 1 ? HAND_CARD_PX - spacing : 0;
     return {
-      x: offset * spacing,
+      x,
       y: -height / 2 + HAND_CARD_PX * 0.78 - offset * offset * 2.2,
       rotation: -offset * 0.05,
+      pickX: x - covered / 2,
     };
   });
 }

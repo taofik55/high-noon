@@ -1,4 +1,4 @@
-import { setSetting, skipTutorial } from "./settingsHelpers";
+import { setSetting } from "./settingsHelpers";
 import { expect, test, type Page } from "@playwright/test";
 
 type HandCard = { cardId: string; x: number; y: number; state: string };
@@ -247,7 +247,7 @@ test.describe("/play/solo 3D table", () => {
   });
 
   test("first-game tutorial steps through, stays done, and can be turned back on; badges show player tooltips", async ({ page }) => {
-    test.setTimeout(180_000);
+    test.setTimeout(300_000);
     await page.goto("/play/solo?placeholders=1");
     await page.evaluate(() => window.localStorage.clear());
     await page.reload();
@@ -255,11 +255,16 @@ test.describe("/play/solo 3D table", () => {
     await page.getByTestId("setup-name").fill("Tester");
     await page.getByTestId("setup-start").click();
     await expect(page.getByTestId("tutorial")).toBeVisible({ timeout: 60_000 });
+    // The settings work while the tutorial shows; low graphics and fast presentation keep the test (and the CPU it
+    // shares with parallel tests) light.
+    await setSetting(page, "quality", "low");
+    await fastPresentation(page);
     await expect(page.getByTestId("tutorial")).toContainText("1/8");
     for (let i = 0; i < 7; i++) await page.getByTestId("tutorial-next").click();
     await expect(page.getByTestId("tutorial")).toContainText("8/8");
     await page.getByTestId("tutorial-next").click();
     await expect(page.getByTestId("tutorial")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.localStorage.getItem("highnoon.solo.v1") !== null)).toBe(true);
     await page.reload();
     await page.getByTestId("setup-resume").click();
     await expect(page.getByTestId("game-table")).toBeVisible({ timeout: 60_000 });
@@ -269,13 +274,62 @@ test.describe("/play/solo 3D table", () => {
     await expect(page.getByTestId("seat-badge-1")).toBeVisible({ timeout: 30_000 });
     await page.getByTestId("seat-badge-1").focus();
     await expect(page.getByTestId("player-tooltip")).toBeVisible();
-    await page.getByTestId("seat-badge-1").blur();
+    // Not locator.blur(): that waits for the badge to be visible, and the scene may have hidden it meanwhile.
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await expect(page.getByTestId("player-tooltip")).toHaveCount(0);
     // Turned back on from the settings.
     await page.getByTestId("btn-settings").click();
     await page.getByTestId("tutorial-again").check();
     await page.getByTestId("btn-settings-close").click();
     await expect(page.getByTestId("tutorial")).toBeVisible();
+  });
+
+  test("phone: touch forces low graphics, the log starts hidden, and a tap selects a card", async ({ browser }) => {
+    test.setTimeout(300_000);
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+    const page = await context.newPage();
+    try {
+      await page.goto("/play/solo?placeholders=1");
+      await page.evaluate(() => window.localStorage.clear());
+      await page.reload();
+      await expect(page.getByTestId("setup-start")).toBeEnabled();
+      await page.getByTestId("setup-name").fill("Phone");
+      await page.getByTestId("setup-start").click();
+      await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
+      await page.getByTestId("tutorial-skip").tap();
+      await expect(page.getByTestId("game-log")).toHaveCount(0);
+      await page.getByTestId("btn-settings").tap();
+      await expect(page.getByTestId("settings-panel")).toContainText("Perangkat sentuh");
+      await page.getByTestId("btn-settings-close").tap();
+      await fastPresentation(page);
+      await expect.poll(async () => (await handCards(page)).length, { timeout: 60_000 }).toBeGreaterThan(0);
+      // A tap acts like a click: it selects a playable card (then tap a glowing player) or discards it. The game may
+      // move on between reading the hand and the tap (a busy headless CPU), so try a few times.
+      let tapped = false;
+      for (let attempt = 0; attempt < 6 && !tapped; attempt++) {
+        // Answer whatever the game asks first (General Store pick, Missed!…) until it is our play phase.
+        if (!(await reachMyPlayPhase(page))) break;
+        const playable = await expect
+          .poll(async () => (await handCards(page)).find((c) => c.state === "playable") ?? null, { timeout: 60_000 })
+          .not.toBeNull()
+          .then(async () => (await handCards(page)).find((c) => c.state === "playable"))
+          .catch(() => undefined);
+        if (!playable) break;
+        await page.touchscreen.tap(playable.x, playable.y);
+        tapped = await expect
+          .poll(async () => {
+            const state = (await handCards(page)).find((c) => c.cardId === playable.cardId)?.state;
+            // Selected (it needs a target or a confirm), or gone (a discard during the discard phase).
+            return state === undefined || state === "selected";
+          })
+          .toBe(true)
+          .then(() => true)
+          .catch(() => false);
+      }
+      expect(tapped).toBe(true);
+    } finally {
+      await context.close();
+    }
   });
 
   test("procedural table: real characters, weapons and town render without errors", async ({ page }) => {

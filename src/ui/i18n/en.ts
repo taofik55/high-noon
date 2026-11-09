@@ -145,6 +145,7 @@ export const en = {
   "settings.largeText": "Large text",
   "settings.colorBlindSuits": "Four-colour suits (colour-blind friendly)",
   "settings.tutorial": "Show the tutorial again next game",
+  "settings.touchLow": "Touch devices always use Low graphics.",
   "settings.close": "Close",
   "settings.back": "Back",
   "tooltip.inPlay": "Cards in play",

@@ -38,7 +38,7 @@ export function SeatBadges({ view, targets, thinking }: SeatBadgesProps) {
             onFocus={() => setFocusedSeat(p.seat)}
             onBlur={() => setFocusedSeat(null)}
             style={{ position: "absolute", left: 0, top: 0, visibility: "hidden" }}
-            className={`w-max max-w-64 min-w-44 rounded-md border outline-none focus-visible:ring-2 focus-visible:ring-amber-300 px-2 py-1 text-xs whitespace-nowrap text-amber-50 shadow-lg ${
+            className={`w-max max-w-40 min-w-28 rounded-md border px-1.5 py-0.5 text-[10px] outline-none focus-visible:ring-2 focus-visible:ring-amber-300 sm:max-w-64 sm:min-w-44 sm:px-2 sm:py-1 sm:text-xs whitespace-nowrap text-amber-50 shadow-lg ${
               targetable ? "border-emerald-400 bg-emerald-950/85" : acting ? "border-amber-300 bg-stone-900/85" : "border-stone-600 bg-stone-900/75"
             } ${p.alive ? "" : "opacity-60"}`}
           >

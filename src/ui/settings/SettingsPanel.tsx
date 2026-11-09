@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import type { CinematicMode } from "@/game3d/director/types";
-import { QUALITIES, type QualitySetting } from "@/game3d/settings/quality";
+import { QUALITIES, touchDevice, type QualitySetting } from "@/game3d/settings/quality";
 import { SPEEDS, useSettings, type Speed, type Volumes } from "@/game3d/settings/settingsStore";
 import { Credits } from "../credits/Credits";
 import { LOCALES, t, type Locale } from "../i18n";
@@ -45,7 +45,7 @@ export function SettingsPanel() {
   return (
     <div data-testid="settings-panel" className="space-y-5 text-sm text-amber-50">
       <Section title={t("settings.graphics")}>
-        <Row label={t("solo.quality")}>
+        <Row label={t("solo.quality")} hint={touchDevice() ? t("settings.touchLow") : undefined}>
           <select data-testid="quality" className={selectClass} value={s.quality} onChange={(e) => s.setQuality(e.target.value as QualitySetting)}>
             {(["auto", ...QUALITIES] as const).map((q) => (
               <option key={q} value={q}>

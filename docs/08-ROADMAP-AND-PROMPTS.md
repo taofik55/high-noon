@@ -204,6 +204,9 @@ credits screen. Propose the plan first.
 ```
 
 ## Fase 13 — Polish & performa
+> **Status: selesai.** Overlay perf, LOD karakter, static batching kota, post-processing per preset, governor auto,
+> loading screen + streaming bertahap, halaman/dialog pengaturan (bahasa, kurangi gerakan, teks besar, suit 4 warna),
+> tutorial, tooltip pemain/kartu, mode ponsel ringan. Angka sebelum/sesudah: docs/05 §9.
 ```
 Read CLAUDE.md, docs/01-PRD.md §6, docs/05 §7–§9. Phase 13: graphics presets with auto adaptation, loading screen
 with progressive asset streaming, performance pass to meet the budget (instancing, merged static geometry, LOD, texture

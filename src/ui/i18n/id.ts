@@ -146,6 +146,7 @@ export const id: Partial<Record<MessageKey, string>> = {
   "settings.largeText": "Teks besar",
   "settings.colorBlindSuits": "Simbol kartu 4 warna (ramah buta warna)",
   "settings.tutorial": "Ulangi tutorial di permainan berikutnya",
+  "settings.touchLow": "Perangkat sentuh selalu memakai grafis Rendah.",
   "settings.close": "Tutup",
   "settings.back": "Kembali",
   "tooltip.inPlay": "Kartu di depannya",
