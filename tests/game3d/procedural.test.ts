@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { SkinnedMesh, Vector3, type BufferGeometry, type Mesh } from "three";
 import { buildCharacter, characterGeometry } from "@/game3d/procedural/character/cowboy";
+import { triangleCount } from "@/game3d/procedural/core/parts";
 import { buildClips } from "@/game3d/procedural/character/clips";
 import { ROSTER } from "@/game3d/procedural/character/roster";
 import { BONE_NAMES } from "@/game3d/procedural/character/skeleton";
@@ -84,6 +85,36 @@ describe("master cowboy", () => {
     for (const clip of buildClips()) {
       for (const t of clip.tracks) expect(names.has(t.name.split(".")[0] as string), `${clip.name}: ${t.name}`).toBe(true);
     }
+  });
+});
+
+describe("character LOD (docs/05 §9)", () => {
+  it.each(Object.entries(ROSTER))("%s LOD1 is a ~8k model with the same materials and valid skinning", (id, spec) => {
+    const lod0 = characterGeometry(spec, 0);
+    const lod1 = characterGeometry(spec, 1);
+    let tris = 0;
+    for (const g of lod1.values()) {
+      tris += triangleCount(g);
+      expect(finite(g)).toBe(true);
+      const w = g.getAttribute("skinWeight");
+      for (let v = 0; v < w.count; v += 5) expect(Math.abs(w.getX(v) + w.getY(v) + w.getZ(v) + w.getW(v) - 1)).toBeLessThan(1e-4);
+    }
+    console.log(`[budget] ${id} LOD1 ${tris} tris`);
+    expect(tris).toBeLessThanOrEqual(9_000);
+    expect([...lod1.keys()].sort()).toEqual([...lod0.keys()].sort());
+  });
+
+  it("switches levels on one skeleton without rebuilding", () => {
+    const c = buildCharacter(DEFAULT_SPEC);
+    const visible = () => c.group.children.filter((o) => o instanceof SkinnedMesh && o.visible) as SkinnedMesh[];
+    const lod0 = visible();
+    c.setLod(1);
+    const lod1 = visible();
+    expect(lod1.length).toBe(lod0.length);
+    expect(lod1.every((m) => m.skeleton === c.skeleton && !lod0.includes(m))).toBe(true);
+    c.setLod(0);
+    expect(visible()).toEqual(lod0);
+    expect(c.lod).toBe(0);
   });
 });
 

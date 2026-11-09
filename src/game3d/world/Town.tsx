@@ -2,11 +2,13 @@
 
 import { useMemo } from "react";
 import { Sky } from "@react-three/drei";
-import { CanvasTexture, SRGBColorSpace, Vector3, type Group } from "three";
+import { CanvasTexture, Group, SRGBColorSpace, Vector3 } from "three";
 import { buildSaloon } from "../procedural/buildings/saloon";
 import { buildBank, buildSheriff, buildStable, buildStagecoachStop, buildStore, buildUndertaker, buildWaterTower } from "../procedural/buildings/town";
 import type { BuiltBuilding } from "../procedural/buildings/kit";
 import { buildCactus, buildRock } from "../procedural/props/props";
+import { bakeStatic } from "../procedural/core/batch";
+import { withDetail } from "../procedural/core/detail";
 import { placeholdersOnly } from "../assetMode";
 import { BUILDINGS, MESAS, type Building } from "./layout";
 
@@ -75,52 +77,76 @@ const PROCEDURAL: Record<string, { build: () => BuiltBuilding; depth: number }> 
   "building.stagecoach_stop": { build: buildStagecoachStop, depth: 4 },
 };
 
-// Built once per page: the town never changes and its groups are reused when the table remounts.
-const built = new Map<string, Group | null>();
 function proceduralBuilding(id: string): Group | null {
-  if (placeholdersOnly()) return null;
-  if (!built.has(id)) {
-    try {
-      built.set(id, PROCEDURAL[id]?.build().group ?? null);
-    } catch (e) {
-      console.error(`[town] ${id} falls back to its placeholder`, e);
-      built.set(id, null);
-    }
+  try {
+    return PROCEDURAL[id]?.build().group ?? null;
+  } catch (e) {
+    console.error(`[town] ${id} falls back to its placeholder`, e);
+    return null;
   }
-  return built.get(id) ?? null;
 }
 
-/**
- * A layout building: the procedural model with its front wall where the layout box's front face was (porches
- * reach toward the square), or the placeholder box if it could not be built (Golden rule 6).
- */
-function TownBuilding({ b }: { b: Building }) {
-  const group = useMemo(() => proceduralBuilding(b.id), [b.id]);
-  if (!group) return <BuildingBox b={b} />;
+/** Places a layout building's model with its front wall where the layout box's front face was (porches reach toward the square). */
+function placeBuilding(group: Group, b: Building): void {
   const depth = PROCEDURAL[b.id]?.depth ?? 0;
   const back = (b.size[2] - depth) / 2;
   const offset = new Vector3(0, 0, back).applyAxisAngle(new Vector3(0, 1, 0), b.rotationY);
-  return <primitive object={group} position={[b.position[0] + offset.x, 0, b.position[2] + offset.z]} rotation={[0, b.rotationY, 0]} />;
+  group.position.set(b.position[0] + offset.x, 0, b.position[2] + offset.z);
+  group.rotation.set(0, b.rotationY, 0);
 }
 
-const cactusCache = new Map<number, Group>();
-const rockCache = new Map<number, Group>();
-
-function Cactus({ position, scale }: { position: [number, number, number]; scale: number }) {
-  const seed = Math.round(position[0] * 7 + position[2] * 3);
-  const g = useMemo(() => {
-    if (!cactusCache.has(seed)) cactusCache.set(seed, buildCactus(seed).group);
-    return cactusCache.get(seed) as Group;
-  }, [seed]);
-  return <primitive object={g} position={position} scale={scale * 1.1} />;
+/**
+ * The procedural town as one static batch (docs/05 §9): every building, cactus and rock merged per shared material.
+ * Built once per page and detail level (the low preset uses coarser curves). Buildings that fail to build are listed
+ * in `missing` and drawn as placeholder boxes.
+ */
+interface TownBatch {
+  group: Group;
+  missing: Set<string>;
+  before: number;
+  after: number;
+}
+const townBatches = new Map<number, TownBatch>();
+function proceduralTown(detail: number): TownBatch | null {
+  if (placeholdersOnly()) return null;
+  const hit = townBatches.get(detail);
+  if (hit) return hit;
+  const batch = withDetail(detail, buildTown);
+  townBatches.set(detail, batch);
+  return batch;
 }
 
-function Rock({ position, scale, seed }: { position: [number, number, number]; scale: number; seed: number }) {
-  const g = useMemo(() => {
-    if (!rockCache.has(seed)) rockCache.set(seed, buildRock(seed, 0.8).group);
-    return rockCache.get(seed) as Group;
-  }, [seed]);
-  return <primitive object={g} position={position} scale={scale} />;
+function buildTown(): TownBatch {
+  const root = new Group();
+  const missing = new Set<string>();
+  for (const b of BUILDINGS) {
+    const g = proceduralBuilding(b.id);
+    if (!g) {
+      missing.add(b.id);
+      continue;
+    }
+    placeBuilding(g, b);
+    root.add(g);
+  }
+  for (const c of CACTI) {
+    const g = buildCactus(Math.round(c.position[0] * 7 + c.position[2] * 3)).group;
+    g.position.set(...c.position);
+    g.scale.setScalar(c.scale * 1.1);
+    root.add(g);
+  }
+  for (const r of ROCKS) {
+    const g = buildRock(r.seed, 0.8).group;
+    g.position.set(...r.position);
+    g.scale.setScalar(r.scale);
+    root.add(g);
+  }
+  try {
+    return { ...bakeStatic(root, (m) => m.name.startsWith("procedural.")), missing };
+  } catch (e) {
+    // Batching is an optimisation: if it fails, draw the unbatched town.
+    console.error("[town] static batching failed", e);
+    return { group: root, missing, before: 0, after: 0 };
+  }
 }
 
 const ROCKS: { position: [number, number, number]; scale: number; seed: number }[] = [
@@ -142,7 +168,8 @@ const CACTI: { position: [number, number, number]; scale: number }[] = [
 ];
 
 /** The placeholder town square at high noon / golden hour (docs/05 §1–2, §7). */
-export function Town({ shadows, shadowMapSize }: { shadows: boolean; shadowMapSize: number }) {
+export function Town({ shadows, shadowMapSize, detail = 1 }: { shadows: boolean; shadowMapSize: number; detail?: number }) {
+  const town = useMemo(() => proceduralTown(detail), [detail]);
   return (
     <>
       <Sky sunPosition={SUN} turbidity={6} rayleigh={1.2} mieCoefficient={0.006} mieDirectionalG={0.85} />
@@ -172,14 +199,9 @@ export function Town({ shadows, shadowMapSize }: { shadows: boolean; shadowMapSi
         <meshStandardMaterial color="#b98c58" roughness={1} />
       </mesh>
 
-      {BUILDINGS.map((b) => (
-        <TownBuilding key={b.id} b={b} />
-      ))}
-      {CACTI.map((c, i) => (
-        <Cactus key={i} {...c} />
-      ))}
-      {ROCKS.map((r, i) => (
-        <Rock key={i} {...r} />
+      {town && <primitive object={town.group} />}
+      {BUILDINGS.filter((b) => !town || town.missing.has(b.id)).map((b) => (
+        <BuildingBox key={b.id} b={b} />
       ))}
       {MESAS.map((m, i) => (
         <mesh key={i} position={[m.position[0], m.height / 2, m.position[2]]}>

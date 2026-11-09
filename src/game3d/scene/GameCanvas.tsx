@@ -10,6 +10,7 @@ import { CameraRig } from "../camera/CameraRig";
 import { CenterPile } from "../cards/CenterPile";
 import { HandFan } from "../hand/HandFan";
 import { BadgeTracker } from "../hud/BadgeTracker";
+import { PerfProbe } from "../perf/PerfProbe";
 import { QUALITY_CONFIG, resolveQuality } from "../settings/quality";
 import { useSettings } from "../settings/settingsStore";
 import { registerSeatPicker } from "../seatPicker";
@@ -98,7 +99,8 @@ export function GameCanvas({ ti }: { ti: TableInteraction }) {
       data-testid="game-canvas"
     >
       <PerformanceMonitor onDecline={degradeAuto} flipflops={3} />
-      <Town shadows={quality.shadows} shadowMapSize={quality.shadowMapSize} />
+      <PerfProbe />
+      <Town shadows={quality.shadows} shadowMapSize={quality.shadowMapSize} detail={quality.townDetail} />
       {/* Something for metal to reflect (revolvers, hoops, badges); generated, no HDR download. */}
       <StudioEnvironment intensity={0.5} only={METALS} />
       <CenterPile deckCount={view.deckCount} discardTop={view.discard.at(-1) ?? null} />

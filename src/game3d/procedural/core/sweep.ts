@@ -1,4 +1,5 @@
 import { BufferGeometry, CatmullRomCurve3, Float32BufferAttribute, Vector3 } from "three";
+import { seg } from "./detail";
 
 /**
  * One cross-section of a sweep, in the section's own frame: `w` = half width to each side, `f` / `b` = depth to the
@@ -90,9 +91,10 @@ export function ringPoint(r: Ring, a: number): [number, number] {
  * plain cylinders would read as primitives. Rings stay perpendicular to the path; the `front` hint fixes their roll.
  */
 export function sweep(o: SweepOptions): SweepResult {
-  const radial = o.radial ?? 12;
+  const radial = seg(o.radial ?? 12, 4);
   const n = o.path.length;
-  const samples = Math.max(2, o.samples ?? n);
+  // Only smoothed sweeps can lose rings: unsmoothed ones need a ring at every path point.
+  const samples = Math.max(2, o.samples ? seg(o.samples, Math.max(2, Math.min(n, 4))) : n);
   const curve = o.samples ? new CatmullRomCurve3([...o.path], o.closed ?? false, "catmullrom", 0.5) : null;
   const fronts = Array.isArray(o.front) ? (o.front as Vector3[]) : null;
   const hasGap = o.rings.some((r) => (r.gap ?? 0) > 0 || (r.span ?? 0) > 0);

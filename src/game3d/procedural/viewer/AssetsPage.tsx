@@ -18,6 +18,7 @@ export function AssetsPage() {
   const [gunInHand, setGunInHand] = useState(false);
   const [wireframe, setWireframe] = useState(false);
   const [autoRotate, setAutoRotate] = useState(false);
+  const [lod, setLod] = useState<0 | 1>(0);
   const [stats, setStats] = useState<AssetStats | null>(null);
   const [view, setView] = useState<CameraPreset>("threeQuarter");
   const [character, setCharacter] = useState<CharacterId | "master">("master");
@@ -104,6 +105,9 @@ export function AssetsPage() {
           <input type="checkbox" data-testid="wireframe" checked={wireframe} onChange={(e) => setWireframe(e.target.checked)} /> Wireframe
         </label>
         <label className="flex items-center gap-2">
+          <input type="checkbox" data-testid="lod1" checked={lod === 1} onChange={(e) => setLod(e.target.checked ? 1 : 0)} /> LOD1 (jarak jauh)
+        </label>
+        <label className="flex items-center gap-2">
           <input type="checkbox" checked={autoRotate} onChange={(e) => setAutoRotate(e.target.checked)} /> Putar otomatis
         </label>
 
@@ -128,7 +132,7 @@ export function AssetsPage() {
         <p className="text-xs text-stone-500">Draw call termasuk lantai pratinjau (1) dan bayangan.</p>
       </aside>
       <main className="relative flex-1">
-        <AssetViewer asset={asset} character={character} view={view} clip={clip} playing={playing} gunInHand={gunInHand} wireframe={wireframe} autoRotate={autoRotate} onStats={onStats} onClips={onClips} />
+        <AssetViewer asset={asset} character={character} view={view} clip={clip} playing={playing} gunInHand={gunInHand} wireframe={wireframe} autoRotate={autoRotate} lod={lod} onStats={onStats} onClips={onClips} />
       </main>
     </div>
   );

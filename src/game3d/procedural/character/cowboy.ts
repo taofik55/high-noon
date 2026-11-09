@@ -1,4 +1,5 @@
 import { Group, Object3D, SkinnedMesh, type BufferGeometry, type Skeleton } from "three";
+import { withDetail } from "../core/detail";
 import { PartList, triangleCount } from "../core/parts";
 import { isMaterialKey, material } from "../materials";
 import { buildArms, buildLegs, buildTorso } from "./body";
@@ -17,26 +18,39 @@ export interface BuiltCharacter {
   sockets: { rightHand: Object3D; holster: Object3D; holsterLeft: Object3D | null };
   /** False when the outfit has no gun belt (the holster socket is then empty). */
   hasHolster: boolean;
+  /** Triangles of the full-detail model (LOD0). */
   triangles: number;
+  /** Current level of detail. */
+  lod: CharacterLod;
+  /** Switches the visible meshes; a level's meshes are built the first time it is asked for. */
+  setLod(lod: CharacterLod): void;
 }
+
+/** 0 = full detail (≤ 25k tris), 1 = distance model (~8k tris, docs/05 §9). */
+export type CharacterLod = 0 | 1;
+
+/** Segment scale for LOD1: coarser curves on the same parts. */
+export const LOD1_DETAIL = 0.42;
 
 const geometryCache = new Map<string, Map<string, BufferGeometry>>();
 
 /** Geometry per material for a spec; cached, so many characters with the same look share buffers. */
-export function characterGeometry(spec: CharacterSpec): Map<string, BufferGeometry> {
-  const key = JSON.stringify(spec);
+export function characterGeometry(spec: CharacterSpec, lod: CharacterLod = 0): Map<string, BufferGeometry> {
+  const key = `${lod}:${JSON.stringify(spec)}`;
   const hit = geometryCache.get(key);
   if (hit) return hit;
-  const parts = new PartList({ skinned: true });
-  buildLegs(parts, spec);
-  buildTorso(parts, spec);
-  buildArms(parts, spec);
-  buildHands(parts, spec);
-  buildHead(parts, spec);
-  buildHat(parts, spec);
-  buildGear(parts, spec);
-  buildSignature(parts, spec);
-  const built = parts.build();
+  const built = withDetail(lod === 0 ? 1 : LOD1_DETAIL, () => {
+    const parts = new PartList({ skinned: true });
+    buildLegs(parts, spec);
+    buildTorso(parts, spec);
+    buildArms(parts, spec);
+    buildHands(parts, spec);
+    buildHead(parts, spec);
+    buildHat(parts, spec);
+    buildGear(parts, spec);
+    buildSignature(parts, spec);
+    return parts.build();
+  });
   geometryCache.set(key, built);
   return built;
 }
@@ -45,24 +59,34 @@ export function characterGeometry(spec: CharacterSpec): Map<string, BufferGeomet
  * A complete character on its own copy of the shared skeleton: one SkinnedMesh per surface material (a handful of
  * draw calls), shared geometry and materials, and sockets for the revolver.
  */
-export function buildCharacter(spec: CharacterSpec = DEFAULT_SPEC): BuiltCharacter {
+export function buildCharacter(spec: CharacterSpec = DEFAULT_SPEC, lod: CharacterLod = 0): BuiltCharacter {
   const { root, bones, skeleton } = buildSkeleton();
   const group = new Group();
   group.name = "character";
   group.add(root);
+  // Every level binds to the same skeleton, so switching never interrupts an animation.
+  const levels = new Map<CharacterLod, SkinnedMesh[]>();
+  const meshesFor = (level: CharacterLod): SkinnedMesh[] => {
+    let list = levels.get(level);
+    if (list) return list;
+    list = [];
+    for (const [key, geometry] of characterGeometry(spec, level)) {
+      if (!isMaterialKey(key)) continue;
+      const mesh = new SkinnedMesh(geometry, material(key));
+      mesh.name = `character.${key}${level ? `.lod${level}` : ""}`;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      // Skinned bounds follow the rest pose; never cull a character that is mid-animation.
+      mesh.frustumCulled = false;
+      group.add(mesh);
+      mesh.bind(skeleton);
+      list.push(mesh);
+    }
+    levels.set(level, list);
+    return list;
+  };
   let triangles = 0;
-  for (const [key, geometry] of characterGeometry(spec)) {
-    if (!isMaterialKey(key)) continue;
-    const mesh = new SkinnedMesh(geometry, material(key));
-    mesh.name = `character.${key}`;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    // Skinned bounds follow the rest pose; never cull a character that is mid-animation.
-    mesh.frustumCulled = false;
-    group.add(mesh);
-    mesh.bind(skeleton);
-    triangles += triangleCount(geometry);
-  }
+  for (const [key, geometry] of characterGeometry(spec, 0)) if (isMaterialKey(key)) triangles += triangleCount(geometry);
 
   const rightHand = new Object3D();
   rightHand.name = "socket.rightHand";
@@ -91,5 +115,19 @@ export function buildCharacter(spec: CharacterSpec = DEFAULT_SPEC): BuiltCharact
   }
   // Height varies by uniform scale, so every clip still fits the shared skeleton.
   group.scale.setScalar(spec.height);
-  return { group, skeleton, sockets: { rightHand, holster, holsterLeft }, hasHolster: spec.coat !== "dress", triangles };
+  const built: BuiltCharacter = {
+    group,
+    skeleton,
+    sockets: { rightHand, holster, holsterLeft },
+    hasHolster: spec.coat !== "dress",
+    triangles,
+    lod,
+    setLod(level) {
+      meshesFor(level).forEach((m) => (m.visible = true));
+      for (const [l, list] of levels) if (l !== level) list.forEach((m) => (m.visible = false));
+      built.lod = level;
+    },
+  };
+  built.setLod(lod);
+  return built;
 }

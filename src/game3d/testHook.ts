@@ -1,6 +1,7 @@
 "use client";
 
 import type { CardId } from "@/engine";
+import type { PerfStats } from "./perf/perfStats";
 import { useUi3D } from "./uiStore";
 
 /**
@@ -11,11 +12,12 @@ export interface HighNoonTestHook {
   handCards(): { cardId: CardId; x: number; y: number; state: string }[];
   seats(): { seat: number; x: number; y: number; targetable: boolean }[];
   ui(): { hoveredSeat: number | null; dragging: CardId | null; active: boolean };
+  perf(): PerfStats | null;
 }
 
 type Provider<K extends keyof HighNoonTestHook> = HighNoonTestHook[K];
 
-const providers: { handCards?: Provider<"handCards">; seats?: Provider<"seats"> } = {};
+const providers: { handCards?: Provider<"handCards">; seats?: Provider<"seats">; perf?: Provider<"perf"> } = {};
 
 declare global {
   interface Window {
@@ -29,6 +31,7 @@ export function registerTestProvider<K extends keyof HighNoonTestHook>(key: K, f
   window.__highnoonTest = {
     handCards: () => providers.handCards?.() ?? [],
     seats: () => providers.seats?.() ?? [],
+    perf: () => providers.perf?.() ?? null,
     ui: () => {
       const s = useUi3D.getState();
       return { hoveredSeat: s.hoveredSeat, dragging: s.drag?.cardId ?? null, active: s.drag?.active ?? false };

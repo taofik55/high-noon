@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
-import type { AnimationClip, Group, MeshStandardMaterial } from "three";
+import { Vector3, type AnimationClip, type Group, type MeshStandardMaterial } from "three";
 import { cardType, equippedWeapon, type CardType, type PublicPlayer } from "@/engine";
 import { placeholdersOnly } from "../assetMode";
 import { CardMesh, CARD_W } from "../cards/CardMesh";
@@ -17,6 +17,8 @@ import { DEFAULT_SPEC } from "../procedural/character/spec";
 import { buildCrate, buildGrave } from "../procedural/props/props";
 import { buildWeapon, LONG_GUNS, WEAPON_IDS, type WeaponId } from "../procedural/weapons";
 import { registerRig } from "../director/registry";
+import { pickLod, QUALITY_CONFIG, resolveQuality } from "../settings/quality";
+import { useSettings } from "../settings/settingsStore";
 import type { RigApi } from "../director/types";
 import { useUi3D } from "../uiStore";
 import { facingCenter, towardsCenter, type Vec3 } from "./layout";
@@ -105,9 +107,17 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
     r?.reset();
   }, [version, player.alive]);
 
-  useFrame((_, dt) => {
+  const lodDistance = useSettings((s) => QUALITY_CONFIG[resolveQuality(s.quality, s.autoLevel)].lodDistance);
+  const worldPos = useRef(new Vector3());
+  useFrame(({ camera }, dt) => {
     const r = rig.current;
     if (isSkeletal(r)) r.update(dt);
+    // Distance LOD (docs/05 §9): close-ups in cinematics bring the full model back automatically.
+    if (character && anim.current) {
+      const d = anim.current.getWorldPosition(worldPos.current).distanceTo(camera.position);
+      const lod = pickLod(character.lod, d, lodDistance);
+      if (lod !== character.lod) character.setLod(lod);
+    }
   });
 
   const grave = useMemo(() => (player.alive ? null : buildGrave().group), [player.alive]);

@@ -9,6 +9,8 @@ import type { CinematicMode } from "@/game3d/director/types";
 import { QUALITIES, type QualitySetting } from "@/game3d/settings/quality";
 import { SPEEDS, useSettings, type Speed } from "@/game3d/settings/settingsStore";
 import { SeatBadges } from "@/game3d/hud/SeatBadges";
+import { PerfOverlay } from "@/game3d/perf/PerfOverlay";
+import { perfOverlayRequested } from "@/game3d/perf/perfStats";
 import { useUi3D } from "@/game3d/uiStore";
 import { useTargetSeats } from "@/game3d/useTargetSeats";
 import { cardLabel, cardRules } from "../cards";
@@ -58,6 +60,7 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
   const freeCamera = useUi3D((s) => s.freeCamera);
   const setFreeCamera = useUi3D((s) => s.setFreeCamera);
   const [showLog, setShowLog] = useState(true);
+  const [showPerf, setShowPerf] = useState(perfOverlayRequested);
 
   // The Director stages every update on this table (docs/05 §6); without it the store falls back to short delays.
   useEffect(() => {
@@ -158,6 +161,12 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
               {t("solo.freeCamera")}
             </label>
           )}
+          {process.env.NODE_ENV !== "production" && (
+            <label className="flex items-center gap-1">
+              <input type="checkbox" data-testid="toggle-perf" checked={showPerf} onChange={(e) => setShowPerf(e.target.checked)} />
+              perf
+            </label>
+          )}
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={showLog} onChange={(e) => setShowLog(e.target.checked)} />
             {t("solo.showLog")}
@@ -198,6 +207,8 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
           <div className="text-stone-200">{cardRules(hoveredCard)}</div>
         </div>
       )}
+
+      {showPerf && <PerfOverlay />}
 
       {overlay}
 

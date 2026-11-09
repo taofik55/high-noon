@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { AnimationMixer, Box3, Group, Mesh, Vector3, type AnimationAction, type Material, type MeshStandardMaterial, type Object3D } from "three";
-import { buildCharacter, type BuiltCharacter } from "../character/cowboy";
+import { AnimationMixer, Box3, Group, Mesh, SkinnedMesh, Vector3, type AnimationAction, type Material, type MeshStandardMaterial, type Object3D } from "three";
+import { buildCharacter, type BuiltCharacter, type CharacterLod } from "../character/cowboy";
 import { buildClips } from "../character/clips";
+import { triangleCount } from "../core/parts";
 import { ROSTER } from "../character/roster";
 import { DEFAULT_SPEC } from "../character/spec";
 import type { CharacterId } from "@/engine";
@@ -63,6 +64,8 @@ interface ViewerProps {
   gunInHand: boolean;
   wireframe: boolean;
   autoRotate: boolean;
+  /** Character level of detail (docs/05 §9). */
+  lod: CharacterLod;
   onStats: (s: AssetStats) => void;
   onClips: (names: string[]) => void;
 }
@@ -76,22 +79,31 @@ interface Loaded {
   triangles: number;
 }
 
-function load(asset: AssetId, who: CharacterId | "master"): Loaded {
+/** Triangles of the meshes currently shown (the active character LOD). */
+function visibleTriangles(root: Object3D): number {
+  let n = 0;
+  root.traverse((o) => {
+    if (o instanceof SkinnedMesh && o.visible) n += triangleCount(o.geometry);
+  });
+  return n;
+}
+
+function load(asset: AssetId, who: CharacterId | "master", lod: CharacterLod): Loaded {
   if (asset === "cowboy") {
-    const character = buildCharacter(who === "master" ? DEFAULT_SPEC : ROSTER[who]);
+    const character = buildCharacter(who === "master" ? DEFAULT_SPEC : ROSTER[who], lod);
     const gun = buildColt45().group;
     if (character.sockets.holsterLeft) character.sockets.holsterLeft.add(buildColt45().group);
-    return { object: character.group, character, gun, triangles: character.triangles };
+    return { object: character.group, character, gun, triangles: visibleTriangles(character.group) };
   }
   if (asset === "lineup") {
     // All 16 in two rows, alphabetical like the roster, each on its own skeleton.
     const group = new Group();
     let triangles = 0;
     Object.values(ROSTER).forEach((spec, i) => {
-      const c = buildCharacter(spec);
+      const c = buildCharacter(spec, lod);
       c.group.position.set((i % 8) * 0.9 - 3.15, 0, i < 8 ? 0 : -1.4);
       group.add(c.group);
-      triangles += c.triangles;
+      triangles += visibleTriangles(c.group);
     });
     return { object: group, character: null, gun: null, triangles };
   }
@@ -175,8 +187,8 @@ function collectStats(root: Object3D, triangles: number, gunTris: number): Omit<
   return { triangles: triangles + gunTris, meshes, instanced, materials: [...materials], textures: [...textures], bones: 0 };
 }
 
-function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, autoRotate, onStats, onClips }: ViewerProps) {
-  const loaded = useMemo(() => load(asset, character), [asset, character]);
+function Scene({ asset, character, view, clip, playing, gunInHand, wireframe, autoRotate, lod, onStats, onClips }: ViewerProps) {
+  const loaded = useMemo(() => load(asset, character, lod), [asset, character, lod]);
   const clips = useMemo(() => (loaded.character ? buildClips() : []), [loaded]);
   const gaits = useMemo(() => (loaded.horse ? ["idle", "walk", "gallop"] : null), [loaded]);
   const mixer = useMemo(() => (loaded.character ? new AnimationMixer(loaded.character.group) : null), [loaded]);

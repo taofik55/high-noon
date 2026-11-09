@@ -1,3 +1,4 @@
+import { seg } from "./detail";
 import { Euler, ExtrudeGeometry, LatheGeometry, Matrix4, Quaternion, Shape, Vector2, Vector3, type BufferGeometry } from "three";
 
 // Small helpers around three's Extrude/Lathe geometry, used for every hard-surface detail (guns, buckles, trim).
@@ -15,8 +16,8 @@ export function extrude(shape: Shape, depth: number, bevel?: BevelSpec, curveSeg
     bevelEnabled: !!bevel,
     bevelSize: bevel?.size ?? 0,
     bevelThickness: bevel?.thickness ?? bevel?.size ?? 0,
-    bevelSegments: bevel?.segments ?? 2,
-    curveSegments,
+    bevelSegments: seg(bevel?.segments ?? 2, 1),
+    curveSegments: seg(curveSegments, 2),
   });
   g.translate(0, 0, -(depth - (bevel ? 2 * (bevel.thickness ?? bevel.size) : 0)) / 2);
   return g;
@@ -26,7 +27,7 @@ export function extrude(shape: Shape, depth: number, bevel?: BevelSpec, curveSeg
 export function lathe(profile: readonly (readonly [number, number])[], segments = 16, phiStart = 0, phiLength = Math.PI * 2): BufferGeometry {
   return new LatheGeometry(
     profile.map(([r, y]) => new Vector2(Math.max(0, r), y)),
-    segments,
+    seg(segments, 5),
     phiStart,
     phiLength,
   );
