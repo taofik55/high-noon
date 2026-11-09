@@ -248,6 +248,14 @@ export function Seat({ player, position, tint, isTurn, isActing, targetable, ver
             rotation={[-Math.PI / 2, 0, Math.PI]}
             scale={0.95}
             castShadow
+            // Hovering a card in play shows its rules (the card tooltip, docs/01 §9).
+            onPointerOver={(e) => {
+              e.stopPropagation();
+              useUi3D.getState().setHoveredCard(id);
+            }}
+            onPointerOut={() => {
+              if (useUi3D.getState().hoveredCard === id) useUi3D.getState().setHoveredCard(null);
+            }}
           />
         ))}
       </group>

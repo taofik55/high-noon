@@ -3,6 +3,7 @@
 import { effectiveDistance, weaponRange, type PlayerView } from "@/engine";
 import { characterName, characterRules } from "@/ui/cards";
 import { t } from "@/ui/i18n";
+import { useUi3D } from "../uiStore";
 import { registerBadge } from "./badgeAnchors";
 
 interface SeatBadgesProps {
@@ -19,6 +20,7 @@ export function SeatBadges({ view, targets, thinking }: SeatBadgesProps) {
   const me = view.viewer === "spectator" ? 0 : view.viewer;
   const myPlayer = view.players[me];
   const range = myPlayer ? weaponRange(myPlayer) : 1;
+  const setFocusedSeat = useUi3D((s) => s.setFocusedSeat);
   return (
     <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
       {view.players.map((p) => {
@@ -30,8 +32,13 @@ export function SeatBadges({ view, targets, thinking }: SeatBadgesProps) {
             key={p.seat}
             ref={(el) => registerBadge(p.seat, el)}
             data-testid={`seat-badge-${p.seat}`}
+            // Keyboard access to the player tooltip (character ability, cards in play): Tab through the badges.
+            tabIndex={0}
+            aria-label={`${p.name}: ${characterName(p.characterId)}. ${characterRules(p.characterId)}`}
+            onFocus={() => setFocusedSeat(p.seat)}
+            onBlur={() => setFocusedSeat(null)}
             style={{ position: "absolute", left: 0, top: 0, visibility: "hidden" }}
-            className={`w-max max-w-64 min-w-44 rounded-md border px-2 py-1 text-xs whitespace-nowrap text-amber-50 shadow-lg ${
+            className={`w-max max-w-64 min-w-44 rounded-md border outline-none focus-visible:ring-2 focus-visible:ring-amber-300 px-2 py-1 text-xs whitespace-nowrap text-amber-50 shadow-lg ${
               targetable ? "border-emerald-400 bg-emerald-950/85" : acting ? "border-amber-300 bg-stone-900/85" : "border-stone-600 bg-stone-900/75"
             } ${p.alive ? "" : "opacity-60"}`}
           >
@@ -43,7 +50,7 @@ export function SeatBadges({ view, targets, thinking }: SeatBadgesProps) {
               </span>
               {!p.alive && <span className="text-red-400">{t("table.dead")}</span>}
             </div>
-            <div className="truncate text-amber-300" title={characterRules(p.characterId)}>
+            <div className="truncate text-amber-300">
               {characterName(p.characterId)}
             </div>
             <div className="flex justify-between">

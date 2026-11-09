@@ -9,3 +9,9 @@ export async function setSetting(page: Page, testId: "quality" | "cinematics" | 
   await page.getByTestId("btn-settings-close").click();
   await expect(dialog).toHaveCount(0);
 }
+
+/** Skips the first-game tutorial if it is showing (fresh storage shows it once). */
+export async function skipTutorial(page: Page): Promise<void> {
+  const skip = page.getByTestId("tutorial-skip");
+  if (await skip.isVisible().catch(() => false)) await skip.click();
+}

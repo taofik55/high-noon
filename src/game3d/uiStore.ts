@@ -18,6 +18,9 @@ interface Ui3DState {
   /** The Director owns the camera (CINEMATIC mode, docs/05 §3). */
   cinematic: boolean;
   banner: Banner | null;
+  /** A seat badge with keyboard focus: shows that player's tooltip like hovering the character does. */
+  focusedSeat: number | null;
+  setFocusedSeat(seat: number | null): void;
   setHoveredSeat(seat: number | null): void;
   setHoveredCard(card: CardId | null): void;
   setDrag(drag: Ui3DState["drag"]): void;
@@ -33,6 +36,8 @@ export const useUi3D = create<Ui3DState>()((set) => ({
   freeCamera: false,
   cinematic: false,
   banner: null,
+  focusedSeat: null,
+  setFocusedSeat: (focusedSeat) => set({ focusedSeat }),
   setHoveredSeat: (hoveredSeat) => set({ hoveredSeat }),
   setHoveredCard: (hoveredCard) => set({ hoveredCard }),
   setDrag: (drag) => set({ drag }),

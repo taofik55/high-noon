@@ -1,4 +1,4 @@
-import { setSetting } from "./settingsHelpers";
+import { setSetting, skipTutorial } from "./settingsHelpers";
 import { expect, test } from "@playwright/test";
 
 /**
@@ -16,6 +16,7 @@ test("perf report: TABLE view stays within the draw-call budget", async ({ page 
   await page.getByTestId("setup-difficulty").selectOption("easy");
   await page.getByTestId("setup-start").click();
   await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
+  await skipTutorial(page);
   await setSetting(page, "cinematics", "off");
   const report: Record<string, unknown> = {};
   for (const q of ["low", "medium", "high", "ultra"]) {

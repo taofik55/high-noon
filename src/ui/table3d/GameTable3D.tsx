@@ -22,6 +22,8 @@ import { GameLog } from "../table/GameLog";
 import { PromptPanel } from "../table/PromptPanel";
 import { useTableInteraction } from "../table/useTableInteraction";
 import { LoadingCurtain, StreamingNote } from "./LoadingScreen";
+import { PlayerTooltip } from "./PlayerTooltip";
+import { Tutorial } from "./Tutorial";
 
 // three.js must never render on the server.
 const GameCanvas = dynamic(() => import("@/game3d/scene/GameCanvas").then((m) => m.GameCanvas), {
@@ -52,6 +54,7 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
   const presenting = useStore(store, (s) => s.presenting);
   const banner = useUi3D((s) => s.banner);
   const hoveredCard = useUi3D((s) => s.hoveredCard);
+  const focusedSeat = useUi3D((s) => s.focusedSeat);
   const freeCamera = useUi3D((s) => s.freeCamera);
   const setFreeCamera = useUi3D((s) => s.setFreeCamera);
   const [showLog, setShowLog] = useState(true);
@@ -156,7 +159,7 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
         </div>
       )}
 
-      {hoveredCard && (
+      {hoveredCard && focusedSeat === null && (
         <div
           className="pointer-events-none absolute bottom-64 left-1/2 z-30 w-72 -translate-x-1/2 rounded border border-amber-600 bg-stone-900/95 p-3 text-sm shadow-xl"
           data-testid="card-tooltip"
@@ -170,6 +173,9 @@ export function GameTable3D({ store, title, headerExtra, overlay, gameOver }: Ga
       {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
       <StreamingNote />
       <LoadingCurtain />
+
+      <PlayerTooltip view={view} />
+      <Tutorial />
 
       {overlay}
 

@@ -1,4 +1,4 @@
-import { setSetting } from "./settingsHelpers";
+import { setSetting, skipTutorial } from "./settingsHelpers";
 import { expect, test, type Page } from "@playwright/test";
 
 type HandCard = { cardId: string; x: number; y: number; state: string };
@@ -38,6 +38,7 @@ async function startGame(page: Page, players = "4", url = "/play/solo?placeholde
   await page.getByTestId("setup-difficulty").selectOption("easy");
   await page.getByTestId("setup-start").click();
   await expect(page.locator("canvas")).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("tutorial-skip").click();
   // Headless Chromium renders in software: without shadow passes the full procedural town stays interactive.
   await setSetting(page, "quality", "low");
   await expect.poll(async () => (await handCards(page)).length, { timeout: 60_000 }).toBeGreaterThan(0);
@@ -243,6 +244,38 @@ test.describe("/play/solo 3D table", () => {
     await page.getByTestId("setup-resume").click();
     await expect(page.getByTestId("btn-settings")).toHaveText("Settings");
     expect(errors.filter((e) => !/THREE\.Clock|GL Driver|instant/.test(e))).toEqual([]);
+  });
+
+  test("first-game tutorial steps through, stays done, and can be turned back on; badges show player tooltips", async ({ page }) => {
+    test.setTimeout(180_000);
+    await page.goto("/play/solo?placeholders=1");
+    await page.evaluate(() => window.localStorage.clear());
+    await page.reload();
+    await expect(page.getByTestId("setup-start")).toBeEnabled();
+    await page.getByTestId("setup-name").fill("Tester");
+    await page.getByTestId("setup-start").click();
+    await expect(page.getByTestId("tutorial")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("tutorial")).toContainText("1/8");
+    for (let i = 0; i < 7; i++) await page.getByTestId("tutorial-next").click();
+    await expect(page.getByTestId("tutorial")).toContainText("8/8");
+    await page.getByTestId("tutorial-next").click();
+    await expect(page.getByTestId("tutorial")).toHaveCount(0);
+    await page.reload();
+    await page.getByTestId("setup-resume").click();
+    await expect(page.getByTestId("game-table")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("tutorial")).toHaveCount(0);
+    // Keyboard: focusing a seat badge shows that player's ability.
+    // Badges stay hidden until the scene has placed them on screen.
+    await expect(page.getByTestId("seat-badge-1")).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId("seat-badge-1").focus();
+    await expect(page.getByTestId("player-tooltip")).toBeVisible();
+    await page.getByTestId("seat-badge-1").blur();
+    await expect(page.getByTestId("player-tooltip")).toHaveCount(0);
+    // Turned back on from the settings.
+    await page.getByTestId("btn-settings").click();
+    await page.getByTestId("tutorial-again").check();
+    await page.getByTestId("btn-settings-close").click();
+    await expect(page.getByTestId("tutorial")).toBeVisible();
   });
 
   test("procedural table: real characters, weapons and town render without errors", async ({ page }) => {
