@@ -216,6 +216,8 @@ preset. Report before/after fps and draw calls. Propose the plan first.
 ```
 
 ## Fase 14 — Deploy
+> **Status: selesai.** Live di https://high-noon-lyart.vercel.app (Vercel `sin1` + Supabase production). Panduan
+> langkah demi langkah dan Google (menyusul): `docs/DEPLOY.md`. Smoke test: `pnpm smoke -- --url <url>`.
 ```
 Read CLAUDE.md and docs/04-DATABASE.md §2. Phase 14: production deployment checklist and fixes:
 - Create/link the Supabase production project, push migrations (supabase db push), configure auth URLs.

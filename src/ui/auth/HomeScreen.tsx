@@ -7,6 +7,7 @@ import { t } from "../i18n";
 import { RoomActions } from "../rooms/RoomActions";
 import { Button } from "../table/Button";
 import { NicknameForm } from "./NicknameForm";
+import { GOOGLE_AUTH } from "@/config/game";
 import { NAME_MAX, readableAuthError, startGoogle, useMe, validName } from "./useMe";
 
 /**
@@ -130,12 +131,14 @@ export function HomeScreen() {
       <RoomActions />
 
       {me.anonymous ? (
+        GOOGLE_AUTH && (
         <div className="space-y-1">
           <Button onClick={() => void google("link")} disabled={busy} testId="link-google">
             {t("auth.linkGoogle")}
           </Button>
           <p className="text-xs text-stone-400">{t("auth.linkGoogleHint")}</p>
         </div>
+        )
       ) : (
         <Button onClick={() => void signOut()} disabled={busy}>
           {t("auth.signOut")}

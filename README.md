@@ -26,6 +26,11 @@ pnpm db:start        # local Supabase on ports 553xx, applies supabase/migration
 pnpm test:db         # row-level security tests
 ```
 
+## Deploy
+
+Live at https://high-noon-lyart.vercel.app (Vercel + Supabase). Step-by-step owner guide, env vars, Google later:
+[docs/DEPLOY.md](docs/DEPLOY.md). Smoke test a deployment with `pnpm smoke -- --url <url>`.
+
 ## Checks
 
 ```bash

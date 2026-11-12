@@ -90,6 +90,7 @@ pnpm lint
 pnpm test           # vitest run
 pnpm test:watch
 pnpm sim -- --games 1000 --players 4-7 --difficulty mixed   # bot-vs-bot harness
+pnpm smoke -- --url https://…   # production smoke test (docs/DEPLOY.md)
 pnpm e2e            # playwright smoke
 pnpm db:start | pnpm db:stop | pnpm db:reset      # local Supabase (Docker), ports 553xx
 pnpm db:types       # supabase gen types typescript --local > src/lib/supabase/types.ts
@@ -104,6 +105,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=     # (anon / publishable key)
 SUPABASE_SECRET_KEY=                       # (service role / secret key) server only
 NEXT_PUBLIC_GAME_TITLE=High Noon
 SITE_PASSWORD=                             # optional shared password gate for friends
+NEXT_PUBLIC_GOOGLE_AUTH=                   # "true" once the Google provider is set up (docs/DEPLOY.md)
 ```
 
 ## Code style

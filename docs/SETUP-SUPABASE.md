@@ -16,7 +16,8 @@ Panduan klik-per-klik untuk hal yang hanya bisa kamu lakukan sendiri. Nama menu 
 5. Perintah lain: `pnpm db:stop`, `pnpm db:reset` (hapus data + jalankan ulang migration), `pnpm db:types`
    (generate ulang `src/lib/supabase/types.ts` setelah migration baru), `pnpm test:db` (test keamanan RLS).
 
-Login Google **tidak wajib** untuk development; tanpa itu tombol Google akan menampilkan "Login Google belum diatur".
+Login Google **tidak wajib** untuk development; tombol Google baru muncul kalau `NEXT_PUBLIC_GOOGLE_AUTH=true`.
+Deploy production: lihat `docs/DEPLOY.md`.
 
 ## B. Google Cloud (OAuth client untuk "Masuk dengan Google")
 

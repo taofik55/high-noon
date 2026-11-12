@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sim": "tsx scripts/sim.ts",
+    "smoke": "tsx scripts/smoke.ts",
     "e2e": "playwright test",
     "test:db": "vitest run --config vitest.db.config.mts",
     "db:start": "supabase start",

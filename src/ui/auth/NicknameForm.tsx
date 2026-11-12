@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { getBrowserSupabase } from "@/lib/supabase/client";
 import { t } from "../i18n";
+import { GOOGLE_AUTH } from "@/config/game";
 import { loadMe, NAME_MAX, readableAuthError, startGoogle, validName, type Me } from "./useMe";
 
 interface NicknameFormProps {
@@ -70,9 +71,11 @@ export function NicknameForm({ onSignedIn, next = "/", footer, initialError = nu
       >
         {t("auth.start")}
       </button>
-      <button type="button" onClick={() => void run(() => startGoogle("signIn", next))} disabled={busy} className="w-full text-xs text-amber-300 underline">
-        {t("auth.signInGoogle")}
-      </button>
+      {GOOGLE_AUTH && (
+        <button type="button" onClick={() => void run(() => startGoogle("signIn", next))} disabled={busy} className="w-full text-xs text-amber-300 underline">
+          {t("auth.signInGoogle")}
+        </button>
+      )}
       {footer && <div className="border-t border-stone-700 pt-3">{footer}</div>}
     </form>
   );
